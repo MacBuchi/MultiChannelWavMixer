@@ -2,7 +2,7 @@
     "BenIn M 1": {
         "volume": 1.0,
         "pan": 0.5,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "OverHead 2 ": {
         "volume": 0.74,

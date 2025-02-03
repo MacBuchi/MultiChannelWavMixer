@@ -145,7 +145,10 @@ def load_wav():
         pan = tk.Scale(frame_controls, from_=0, to=1, resolution=0.01, orient=tk.HORIZONTAL, variable=track["pan"])
         pan.grid(row=i, column=3, padx=5, pady=2)
 
-
+    frame_controls.update_idletasks() # Update the GUI
+    canvas.config(scrollregion=canvas.bbox("all"))  # Update the scroll region
+    path=os.path.dirname(file_path) # Get the directory of the file
+    set_output_folder(path) # Set the output folder to the directory of the file     
 
 def update_mix_config():
     """Aktualisiert MixConf basierend auf aktuellen GUI-Werten."""
