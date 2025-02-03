@@ -1,0 +1,127 @@
+{
+    "BenIn M 1": {
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": true
+    },
+    "OverHead 2 ": {
+        "volume": 0.74,
+        "pan": 0.65,
+        "use_for_mixdown": false
+    },
+    "GuitarIn 34 L": {
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": false
+    },
+    "GuitarIn 34 R": {
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": false
+    },
+    "KeysIn 56 L": {
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": false
+    },
+    "KeysIn 56 R": {
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": false
+    },
+    "BassIn 15": {
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "KickIn 16": {
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "SnareIn 17": {
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "TOMIn 18": {
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "Line Out 1": {
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "Line Out 2": {
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "In Ear 1 L": {
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": false
+    },
+    "In Ear 1 R": {
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": false
+    },
+    "In Ear 2 L": {
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": false
+    },
+    "In Ear 2 R": {
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": false
+    },
+    "Phones L": {
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": false
+    },
+    "Phones R": {
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": false
+    },
+    "Ben_Out S L": {
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": true
+    },
+    "Ben_Out S R": {
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": true
+    },
+    "Bass_O M": {
+        "volume": 1.09,
+        "pan": 0.5,
+        "use_for_mixdown": true
+    },
+    "Keys_O S L": {
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": true
+    },
+    "Keys_O S R": {
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": true
+    },
+    "Guitar_O S L": {
+        "volume": 0.82,
+        "pan": 0.0,
+        "use_for_mixdown": true
+    },
+    "Guitar_O S R": {
+        "volume": 0.88,
+        "pan": 1.0,
+        "use_for_mixdown": true
+    }
+}
