@@ -1,3 +1,13 @@
+# ignore Conda environment and libs
+bin/
+conda-meta/
+etc/
+include/
+lib/
+man/
+share/
+ssl/
+
 # Project specific
 MixConf.json
 
