@@ -9,7 +9,7 @@ share/
 ssl/
 
 # Project specific
-MixConf.json
+*MixConf.json
 *.code-workspace
 
 # Byte-compiled / optimized / DLL files
