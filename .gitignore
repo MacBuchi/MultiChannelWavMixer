@@ -8,6 +8,11 @@ man/
 share/
 ssl/
 
+# ignore MacOS files
+.DS_Store
+.Spotlight-V100
+.Trashes
+
 # Project specific
 MixConf.json
 *.code-workspace
