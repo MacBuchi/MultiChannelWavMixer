@@ -243,8 +243,12 @@ def mix_to_stereo():
 
             audio = AudioSegment.from_wav(temp_wav_path)
 
-            out_mp3_path = os.path.join(output_folder.get(), f"{Outfilename}_{timestamp}.mp3")
-            audio.export(out_mp3_path, format="mp3")
+            if output_format.get() == "mp3":
+                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{timestamp}.mp3")
+                audio.export(out_path, format="mp3")
+            else:
+                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{timestamp}.wav")
+                audio.export(out_path, format="wav")
 
             os.remove(temp_wav_path)
             t = (datetime.now() - start_time_file).total_seconds()
@@ -305,8 +309,11 @@ root.title("Multichannel WAV Mixer")
 root.geometry("750x400")
 root.configure(bg='#00b4d8')
 
+
 top_frame = tk.Frame(root, bg='#00b4d8')
 top_frame.pack(pady=2)
+bottom_frame = tk.Frame(root, bg='#00b4d8')
+bottom_frame.pack(pady=2)
 
 btn_load = tk.Button(top_frame, text="Load WAV", command=load_wav)
 btn_load.pack(side=tk.LEFT, padx=5)
@@ -327,14 +334,29 @@ def set_output_folder(inFilePath=None):
 btn_out = tk.Button(top_frame, text="Select output folder", command=set_output_folder)
 btn_out.pack(side=tk.LEFT, padx=5)
 
-lbl_output_folder = tk.Label(top_frame, textvariable=output_folder, bg='#00b4d8', fg='white')
+lbl_output_folder = tk.Label(bottom_frame, textvariable=output_folder, bg='#00b4d8', fg='white')
 lbl_output_folder.pack(side=tk.LEFT, padx=5)
 
-bottom_frame = tk.Frame(root, bg='#00b4d8')
-bottom_frame.pack(pady=2)
 
-btn_mix = tk.Button(bottom_frame, text="Mix to Stereo", command=mix_to_stereo)
+
+# Toggle button to select output format
+output_format = tk.StringVar(value="mp3")
+
+def toggle_format():
+    if output_format.get() == "mp3":
+        output_format.set("wav")
+        btn_toggle_format.config(text=".wav", relief=tk.SUNKEN)
+    else:
+        output_format.set("mp3")
+        btn_toggle_format.config(text=".mp3", relief=tk.RAISED)
+
+btn_toggle_format = tk.Button(top_frame, text=".mp3", command=toggle_format)
+btn_toggle_format.pack(side=tk.LEFT, padx=5)
+
+btn_mix = tk.Button(top_frame, text="Mix to Stereo", command=mix_to_stereo)
 btn_mix.pack(side=tk.RIGHT, padx=1)
+
+
 
 frame_container = tk.Frame(root)
 frame_container.pack(fill=tk.BOTH, expand=True)

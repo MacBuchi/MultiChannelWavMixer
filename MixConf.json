@@ -4,6 +4,7 @@
         "volume": 1.0,
         "pan": 0.5,
         "use_for_mixdown": false
+        "use_for_mixdown": false
     },
     "OverHead 2 ": {
         "index": 2,
@@ -16,11 +17,13 @@
         "volume": 1.0,
         "pan": 0.0,
         "use_for_mixdown": false
+        "use_for_mixdown": false
     },
     "GuitarIn 34 R": {
         "index": 4,
         "volume": 1.0,
         "pan": 1.0,
+        "use_for_mixdown": false
         "use_for_mixdown": false
     },
     "KeysIn 56 L": {
@@ -28,11 +31,13 @@
         "volume": 1.0,
         "pan": 0.0,
         "use_for_mixdown": false
+        "use_for_mixdown": false
     },
     "KeysIn 56 R": {
         "index": 6,
         "volume": 1.0,
         "pan": 1.0,
+        "use_for_mixdown": false
         "use_for_mixdown": false
     },
     "BassIn 15": {
@@ -40,11 +45,13 @@
         "volume": 1.0,
         "pan": 0.5,
         "use_for_mixdown": false
+        "use_for_mixdown": false
     },
     "KickIn 16": {
         "index": 8,
         "volume": 1.0,
         "pan": 0.5,
+        "use_for_mixdown": false
         "use_for_mixdown": false
     },
     "SnareIn 17": {
@@ -52,11 +59,13 @@
         "volume": 1.0,
         "pan": 0.5,
         "use_for_mixdown": false
+        "use_for_mixdown": false
     },
     "TOMIn 18": {
         "index": 10,
         "volume": 1.0,
         "pan": 0.5,
+        "use_for_mixdown": false
         "use_for_mixdown": false
     },
     "Line Out 1": {
@@ -64,11 +73,13 @@
         "volume": 1.0,
         "pan": 0.5,
         "use_for_mixdown": false
+        "use_for_mixdown": false
     },
     "Line Out 2": {
         "index": 12,
         "volume": 1.0,
         "pan": 0.5,
+        "use_for_mixdown": false
         "use_for_mixdown": false
     },
     "In Ear 1 L": {
@@ -76,11 +87,13 @@
         "volume": 1.0,
         "pan": 0.0,
         "use_for_mixdown": false
+        "use_for_mixdown": false
     },
     "In Ear 1 R": {
         "index": 14,
         "volume": 1.0,
         "pan": 1.0,
+        "use_for_mixdown": false
         "use_for_mixdown": false
     },
     "In Ear 2 L": {
@@ -88,11 +101,13 @@
         "volume": 1.0,
         "pan": 0.0,
         "use_for_mixdown": false
+        "use_for_mixdown": false
     },
     "In Ear 2 R": {
         "index": 16,
         "volume": 1.0,
         "pan": 1.0,
+        "use_for_mixdown": false
         "use_for_mixdown": false
     },
     "Phones L": {
@@ -100,11 +115,13 @@
         "volume": 1.0,
         "pan": 0.0,
         "use_for_mixdown": false
+        "use_for_mixdown": false
     },
     "Phones R": {
         "index": 18,
         "volume": 1.0,
         "pan": 1.0,
+        "use_for_mixdown": false
         "use_for_mixdown": false
     },
     "Ben_Out S L": {
