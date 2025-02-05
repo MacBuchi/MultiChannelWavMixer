@@ -8,3 +8,10 @@ python -m venv .venv
 source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+
+Rough preview of first WAV File helps to quickly identify the used tracks
+![Preview Feature](doc/Preview.png)
+
+Structure:
+![Structure](doc/mixdown_flowchart_en.png)
