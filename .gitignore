@@ -14,7 +14,7 @@ ssl/
 .Trashes
 
 # Project specific
-*MixConf.json
+MixConf.json
 *.code-workspace
 
 # Byte-compiled / optimized / DLL files
