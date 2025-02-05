@@ -221,8 +221,12 @@ def mix_to_stereo():
 
             audio = AudioSegment.from_wav(temp_wav_path)
 
-            out_mp3_path = os.path.join(output_folder.get(), f"{Outfilename}_{timestamp}.mp3")
-            audio.export(out_mp3_path, format="mp3")
+            if output_format.get() == "mp3":
+                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{timestamp}.mp3")
+                audio.export(out_path, format="mp3")
+            else:
+                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{timestamp}.wav")
+                audio.export(out_path, format="wav")
 
             os.remove(temp_wav_path)
             t=(datetime.now() - start_time_file).total_seconds()
@@ -256,18 +260,17 @@ def bring_to_front(event):
     root.attributes('-topmost', False)
 
 root.bind("<FocusIn>", bring_to_front)
-root.title("Multichannel WAV Mixer")
-root.geometry("750x400")
-root.configure(bg='#00b4d8')
+root.title("Multichannel WAV Mixer") #  
+root.geometry("750x400") # Set the window size
+root.configure(bg='#00b4d8') # Set the background color of the window
 
-top_frame = tk.Frame(root, bg='#00b4d8')
-top_frame.pack(pady=10)
+top_frame = tk.Frame(root, bg='#00b4d8') # Create a frame
+top_frame.pack(pady=10) # Add padding to the top frame
 
 btn_load = tk.Button(top_frame, text="WAV laden", command=load_wav)
 btn_load.pack(side=tk.LEFT, padx=5)
 
-output_folder = tk.StringVar(value="")
-
+output_folder = tk.StringVar(value="") # tkinter Variable for the output folder
 def set_output_folder(inFilePath=None):
     if inFilePath and os.path.exists(inFilePath):
         folder_selected = inFilePath
@@ -277,15 +280,43 @@ def set_output_folder(inFilePath=None):
     if folder_selected:
         output_folder.set(folder_selected)
 
+# Button to select the output folder
 btn_out = tk.Button(top_frame, text="Ausgabeordner wählen", command=set_output_folder)
 btn_out.pack(side=tk.LEFT, padx=5)
 
-lbl_output_folder = tk.Label(top_frame, textvariable=output_folder, bg='#00b4d8', fg='white')
+
+# Frame for the second row in the top frame
+second_row_frame = tk.Frame(root, bg='#00b4d8')
+second_row_frame.pack(pady=5)
+
+# Label to display the output folder
+lbl_output_folder = tk.Label(second_row_frame, textvariable=output_folder, bg='#00b4d8', fg='white')
 lbl_output_folder.pack(side=tk.LEFT, padx=5)
 
+
+
+# Toggle button to select output format
+output_format = tk.StringVar(value="mp3")
+
+def toggle_format():
+    if output_format.get() == "mp3":
+        output_format.set("wav")
+        btn_toggle_format.config(text=".wav", relief=tk.SUNKEN)
+    else:
+        output_format.set("mp3")
+        btn_toggle_format.config(text=".mp3", relief=tk.RAISED)
+
+btn_toggle_format = tk.Button(top_frame, text=".mp3", command=toggle_format)
+btn_toggle_format.pack(side=tk.LEFT, padx=5)
+
+# Button to mix the selected WAV files to stereo
 btn_mix = tk.Button(top_frame, text="Zu Stereo mixen", command=mix_to_stereo)
 btn_mix.pack(side=tk.LEFT, padx=5)
 
+
+
+#
+# Frame and Canvas for the controls
 frame_container = tk.Frame(root)
 frame_container.pack(fill=tk.BOTH, expand=True)
 
