@@ -23,10 +23,14 @@ pip install -r requirements.txt
 - optional WAV or MP3 output
 - Save Configuration in a config file (MixConf.json)
 
+#### added 2025-02-09
+  - add Loudness normalization feature with option -1dB Peak (default), -12dB LUFS and none (no normalization)
+
 #### added 2025-02-05
   - double-click Volume slider >> set to 1.0
   - double-cklick Pan slider >> set to 0.5
   - Preview of audio channels using the first listed WAV file given
+
 
 
 ### Usage
