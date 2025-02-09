@@ -12,6 +12,7 @@ from datetime import datetime
 import json
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import pyloudnorm as pyln
 
 # Function to load the mix configuration from a JSON file
 CONFIG_FILE = "MixConf.json"  # Constant for the MixConf file
@@ -235,6 +236,16 @@ def mix_to_stereo():
             stereo[:, 0] += data[:, idx] * volume * (1 - pan)
             stereo[:, 1] += data[:, idx] * volume * pan
 
+        if loudness_option.get() == "-1dBFS":
+            print("Normalizing to -1 dBFS")
+            stereo = pyln.normalize.peak(stereo, -1.0)
+        elif loudness_option.get() == "-12dB LUFS":
+            print("Normalizing to -12 dB LUFS")
+            meter = pyln.Meter(samplerate) # create BS.1770 meter
+            loudness = meter.integrated_loudness(stereo) # measure loudness
+            print(f"Current loudness: {loudness} LUFS")
+            stereo = pyln.normalize.loudness(stereo, loudness, -12.0)
+
         if output_folder.get():
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -243,11 +254,18 @@ def mix_to_stereo():
 
             audio = AudioSegment.from_wav(temp_wav_path)
 
+            loudness_abbrev = {
+                "none": "none",
+                "-1dBFS": "1dBFS",
+                "-12dB LUFS": "12LUFS"
+            }
+            loudness_str = loudness_abbrev.get(loudness_option.get(), "none")
+
             if output_format.get() == "mp3":
-                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{timestamp}.mp3")
+                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{loudness_str}_{timestamp}.mp3")
                 audio.export(out_path, format="mp3")
             else:
-                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{timestamp}.wav")
+                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{loudness_str}_{timestamp}.wav")
                 audio.export(out_path, format="wav")
 
             os.remove(temp_wav_path)
@@ -334,6 +352,9 @@ def set_output_folder(inFilePath=None):
 btn_out = tk.Button(top_frame, text="Select output folder", command=set_output_folder)
 btn_out.pack(side=tk.LEFT, padx=5)
 
+lbl_output_path = tk.Label(bottom_frame, text="Output Path:", bg='#00b4d8', fg='white')
+lbl_output_path.pack(side=tk.LEFT, padx=5)
+
 lbl_output_folder = tk.Label(bottom_frame, textvariable=output_folder, bg='#00b4d8', fg='white')
 lbl_output_folder.pack(side=tk.LEFT, padx=5)
 
@@ -356,7 +377,14 @@ btn_toggle_format.pack(side=tk.LEFT, padx=5)
 btn_mix = tk.Button(top_frame, text="Mix to Stereo", command=mix_to_stereo)
 btn_mix.pack(side=tk.RIGHT, padx=1)
 
+# Dropdown for Loudness Optimization
+loudness_option = tk.StringVar(value="none")
 
+def set_loudness_option(value):
+    loudness_option.set(value)
+
+loudness_menu = tk.OptionMenu(top_frame, loudness_option, "none", "-1dBFS", "-12dB LUFS")
+loudness_menu.pack(side=tk.LEFT, padx=5)
 
 frame_container = tk.Frame(root)
 frame_container.pack(fill=tk.BOTH, expand=True)

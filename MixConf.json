@@ -3,165 +3,178 @@
         "index": 1,
         "volume": 1.0,
         "pan": 0.5,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
     "OverHead 2 ": {
         "index": 2,
         "volume": 1.0,
         "pan": 0.5,
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
     "GuitarIn 34 L": {
         "index": 3,
         "volume": 1.0,
         "pan": 0.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
     "GuitarIn 34 R": {
         "index": 4,
         "volume": 1.0,
         "pan": 1.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
     "KeysIn 56 L": {
         "index": 5,
         "volume": 1.0,
         "pan": 0.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
     "KeysIn 56 R": {
         "index": 6,
         "volume": 1.0,
         "pan": 1.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
-    "BassIn 15": {
+    "ScratchIn13 L": {
         "index": 7,
         "volume": 1.0,
-        "pan": 0.5,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "pan": 0.0,
+        "use_for_mixdown": true
     },
-    "KickIn 16": {
+    "ScratchIn13 R": {
         "index": 8,
         "volume": 1.0,
-        "pan": 0.5,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "pan": 1.0,
+        "use_for_mixdown": true
     },
-    "SnareIn 17": {
+    "BassIn 15": {
         "index": 9,
         "volume": 1.0,
         "pan": 0.5,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
-    "TOMIn 18": {
+    "KickIn 16": {
         "index": 10,
         "volume": 1.0,
         "pan": 0.5,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
-    "Line Out 1": {
+    "SnareIn 17": {
         "index": 11,
         "volume": 1.0,
         "pan": 0.5,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
-    "Line Out 2": {
+    "TOMIn 18": {
         "index": 12,
         "volume": 1.0,
         "pan": 0.5,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
-    "In Ear 1 L": {
+    "VocEfect 19 L": {
         "index": 13,
         "volume": 1.0,
         "pan": 0.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
-    "In Ear 1 R": {
+    "VocEfect 19 R": {
         "index": 14,
         "volume": 1.0,
         "pan": 1.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
-    "In Ear 2 L": {
+    "Line Out 1": {
         "index": 15,
         "volume": 1.0,
-        "pan": 0.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "pan": 0.5,
+        "use_for_mixdown": true
     },
-    "In Ear 2 R": {
+    "Line Out 2": {
         "index": 16,
         "volume": 1.0,
-        "pan": 1.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "pan": 0.5,
+        "use_for_mixdown": true
     },
-    "Phones L": {
+    "In Ear 1 L": {
         "index": 17,
         "volume": 1.0,
         "pan": 0.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
-    "Phones R": {
+    "In Ear 1 R": {
         "index": 18,
         "volume": 1.0,
         "pan": 1.0,
-        "use_for_mixdown": false
-        "use_for_mixdown": false
+        "use_for_mixdown": true
     },
-    "Ben_Out S L": {
+    "In Ear 2 L": {
         "index": 19,
         "volume": 1.0,
         "pan": 0.0,
         "use_for_mixdown": true
     },
-    "Ben_Out S R": {
+    "In Ear 2 R": {
         "index": 20,
         "volume": 1.0,
         "pan": 1.0,
         "use_for_mixdown": true
     },
-    "Bass_O M": {
+    "Phones L": {
         "index": 21,
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": true
+    },
+    "Phones R": {
+        "index": 22,
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": true
+    },
+    "Ben_Out S L": {
+        "index": 23,
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": true
+    },
+    "Ben_Out S R": {
+        "index": 24,
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": true
+    },
+    "Scratch_Out": {
+        "index": 25,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": true
+    },
+    "Bass_O M": {
+        "index": 26,
         "volume": 1.0,
         "pan": 0.5,
         "use_for_mixdown": true
     },
     "Keys_O S L": {
-        "index": 22,
+        "index": 27,
         "volume": 1.0,
         "pan": 0.0,
         "use_for_mixdown": true
     },
     "Keys_O S R": {
-        "index": 23,
+        "index": 28,
         "volume": 1.0,
         "pan": 1.0,
         "use_for_mixdown": true
     },
     "Guitar_O S L": {
-        "index": 24,
+        "index": 29,
         "volume": 1.0,
         "pan": 0.0,
         "use_for_mixdown": true
     },
     "Guitar_O S R": {
-        "index": 25,
+        "index": 30,
         "volume": 1.0,
         "pan": 1.0,
         "use_for_mixdown": true
