@@ -378,7 +378,7 @@ btn_mix = tk.Button(top_frame, text="Mix to Stereo", command=mix_to_stereo)
 btn_mix.pack(side=tk.RIGHT, padx=1)
 
 # Dropdown for Loudness Optimization
-loudness_option = tk.StringVar(value="none")
+loudness_option = tk.StringVar(value="-1dBFS") # Default value is -1dBFS for loudness normalization
 
 def set_loudness_option(value):
     loudness_option.set(value)
