@@ -31,7 +31,9 @@ pip install -r requirements.txt
   - double-cklick Pan slider >> set to 0.5
   - Preview of audio channels using the first listed WAV file given
 
-
+### added 2025-02-13
+  - minor update for preview (close figures after creation)
+  - add Librosa to do automatic BPM detection and mention in mp3
 
 ### Usage
 
