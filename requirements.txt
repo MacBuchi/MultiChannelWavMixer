@@ -13,3 +13,5 @@ pyparsing==3.2.1
 python-dateutil==2.9.0.post0
 six==1.17.0
 soundfile==0.13.1
+pyloudnorm==0.1.0
+librosa==0.10.0

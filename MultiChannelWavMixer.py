@@ -1,4 +1,3 @@
-
 import tkinter as tk
 from tkinter import filedialog, ttk
 import xml.etree.ElementTree as ET
@@ -7,12 +6,13 @@ import numpy as np
 import os
 import re
 import pydub
-from pydub import AudioSegment
+from pydub import AudioSegment, effects, silence
 from datetime import datetime
 import json
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pyloudnorm as pyln
+import librosa
 
 # Function to load the mix configuration from a JSON file
 CONFIG_FILE = "MixConf.json"  # Constant for the MixConf file
@@ -211,7 +211,7 @@ def mix_to_stereo():
         print(f"processing: {ifname}")
 
         start_time_file = datetime.now()
-        filesize = file_sizes[i]
+        #filesize = file_sizes[i]
         filesize = os.path.getsize(ifname) / (1024 ** 3)
         # Remaining code for mixing the files
         path, Outfilename = os.path.split(ifname)
@@ -248,12 +248,27 @@ def mix_to_stereo():
 
         if output_folder.get():
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
             temp_wav_path = "temp_stereo.wav"
             sf.write(temp_wav_path, stereo, samplerate)
-
             audio = AudioSegment.from_wav(temp_wav_path)
-
+            # audio = AudioSegment(
+            #     stereo.tobytes(), 
+            #     frame_rate=samplerate,
+            #     sample_width=stereo.dtype.itemsize, 
+            #     channels=2
+            # )
+            audio = process_audio(audio, PHASE_DBFS_THRESH=3.25, SAMPLE_WIDTH=2, NORMALIZATION_HEADROOM=1, APPLY_FADE_LEN_THRESH_S=3, FADE_DURATION=80)
+            audio_file = librosa.load(temp_wav_path)
+            y, sr = audio_file
+            tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+            # try:
+            #     tempo = int(tempo)
+            # except ValueError:
+            #     tempo = 0
+            #     print("Error: Unable to extract tempo.")
+            print(f"Estimated tempo: {tempo} beats per minute")
+            
+            # BPM=extract_bpm(audio, samplerate)
             loudness_abbrev = {
                 "none": "none",
                 "-1dBFS": "1dBFS",
@@ -261,14 +276,15 @@ def mix_to_stereo():
             }
             loudness_str = loudness_abbrev.get(loudness_option.get(), "none")
 
+            tempo_str = f"{int(tempo)}BPM"
             if output_format.get() == "mp3":
-                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{loudness_str}_{timestamp}.mp3")
+                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{loudness_str}_{tempo_str}_{timestamp}.mp3")
                 audio.export(out_path, format="mp3")
+                print("Storing as MP3: " + out_path)
             else:
-                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{loudness_str}_{timestamp}.wav")
+                out_path = os.path.join(output_folder.get(), f"{Outfilename}_{loudness_str}_{tempo_str}_{timestamp}.wav")
                 audio.export(out_path, format="wav")
-
-            os.remove(temp_wav_path)
+                print("Storing as WAV: " + out_path)
             t = (datetime.now() - start_time_file).total_seconds()
             print(f"{t:.1f} seconds for {filesize:.1f} GB - {t/filesize:.1f} seconds per GB")
         else:
@@ -288,6 +304,66 @@ def mix_to_stereo():
 
     progress_window.destroy()
     tk.messagebox.showinfo("Success", "Mixdown completed")
+
+def extract_bpm(y, sr):
+    """Extracts BPM from an audio signal using librosa."""
+    onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+    tempo, _ = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr)
+    print(f"Estimated BPM: {tempo}")
+    return tempo
+
+def process_audio(wav_in, PHASE_DBFS_THRESH, SAMPLE_WIDTH, NORMALIZATION_HEADROOM, APPLY_FADE_LEN_THRESH_S, FADE_DURATION):
+    """
+    Process the input audio to check for phase issues, normalize, remove silence, and apply fades.
+    
+    :param wav_in: AudioSegment object (stereo input audio)
+    :param PHASE_DBFS_THRESH: Threshold for detecting phase issues
+    :param SAMPLE_WIDTH: Sample width to set
+    :param NORMALIZATION_HEADROOM: Headroom for normalization
+    :param APPLY_FADE_LEN_THRESH_S: Duration threshold for applying fades
+    :param FADE_DURATION: Duration of fade in/out
+    :return: Processed AudioSegment object
+    """
+    print("Process Audio")
+    # Check for phase issues
+    has_phase_issues = False
+    stereo_sound_mono = wav_in.split_to_mono()[0]
+    old_dbfs = wav_in.dBFS
+    mono_dbfs = stereo_sound_mono.dBFS
+
+    phase_mono_db_diff = old_dbfs - mono_dbfs
+    if abs(phase_mono_db_diff) > PHASE_DBFS_THRESH:
+        has_phase_issues = True
+
+    # Invert one channel to fix phase issue, return to stereo
+    if has_phase_issues:
+        split = wav_in.split_to_mono()
+        left_channel = split[0]
+        right_channel = split[1].invert_phase()
+        stereo_sound = AudioSegment.from_mono_audiosegments(left_channel, right_channel)
+        print("Phase issue detected and fixed.") 
+    else:
+        stereo_sound = wav_in.set_channels(2)
+
+    # Normalize
+    stereo_sound = stereo_sound.set_sample_width(SAMPLE_WIDTH)
+    stereo_sound = effects.normalize(stereo_sound, headroom=NORMALIZATION_HEADROOM)
+    print("Normalization done: "+str(NORMALIZATION_HEADROOM)+" dB") 
+
+    # Get rid of leading silence
+    leading_silence_end = silence.detect_leading_silence(stereo_sound)
+    stereo_sound = stereo_sound[leading_silence_end:]
+    if (leading_silence_end>1):
+        print("Removed leading silence")
+
+    # Apply fades if needed
+    sample_duration_s = round(stereo_sound.duration_seconds, 2)
+    if sample_duration_s > APPLY_FADE_LEN_THRESH_S:
+        stereo_sound = stereo_sound.fade_in(FADE_DURATION)
+        stereo_sound = stereo_sound.fade_out(FADE_DURATION)
+    
+    return stereo_sound
+
 
 def preview_tracks():
     """Displays the audio amplitude for each track in a small figure."""
