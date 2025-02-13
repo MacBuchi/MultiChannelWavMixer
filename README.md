@@ -31,15 +31,72 @@ pip install -r requirements.txt
   - double-cklick Pan slider >> set to 0.5
   - Preview of audio channels using the first listed WAV file given
 
-
+### added 2025-02-13
+  - minor update for preview (close figures after creation)
+  - add Librosa to do automatic BPM detection and mention in mp3
 
 ### Usage
 
 To use `MultiChannelWavMixer.py`, run the script with the desired input and output file paths, along with any optional parameters for custom downmixing.
 
+#### Example
+```sh
+python MultiChannelWavMixer.py
+```
+
+### GUI Layout
+
+The GUI consists of the following elements:
+
+- **Top Frame:**
+  - Load WAV button
+  - Preview button
+  - Select output folder button
+  - Toggle output format button
+  - Mix to Stereo button
+  - Loudness normalization dropdown menu
+
+- **Bottom Frame:**
+  - Output Path label
+  - Output folder label
+
+- **Frame Controls:**
+  - Index entry
+  - Mixdown checkbox
+  - Name label
+  - Volume slider
+  - Pan slider
+
 
 Rough preview of first WAV File helps to quickly identify the used tracks
 ![Preview Feature](doc/Preview.png)
 
-Structure:
-![Structure](doc/mixdown_flowchart_en.png)
+### Structure
+```mermaid
+graph LR;
+    A[Main GUI Window Initialization] --> B[Load WAV File]
+    B --> C[Parse iXML Data]
+    B --> D[Load Mix Configuration]
+    B --> E[Update GUI with Track Information]
+    B --> F[Enable Preview Button]
+    A --> G[Mix to Stereo]
+    G --> H[Update Mix Configuration]
+    G --> I[Create Progress Bar Window]
+    G --> J[Process Each WAV File]
+    J --> K[Read Audio Data]
+    J --> L[Mix Tracks to Stereo]
+    J --> M[Apply Loudness Normalization]
+    J --> N[Export Mixed Audio]
+    G --> O[Open Output Folder]
+    G --> P[Display Success Message]
+    A --> Q[Preview Tracks]
+    Q --> R[Display Audio Amplitude]
+    A --> S[Helper Functions]
+    S --> T[load_mix_config]
+    S --> U[save_mix_config]
+    S --> V[clean_xml]
+    S --> W[parse_ixml]
+    S --> X[update_mix_config]
+    S --> Y[extract_bpm]
+    S --> Z[process_audio]
+```
