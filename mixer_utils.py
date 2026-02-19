@@ -10,11 +10,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import xml.etree.ElementTree as ET
-from typing import Any
+from typing import Any, Callable
 
 import librosa
 import numpy as np
+import sounddevice as sd
 from pydub import AudioSegment, effects, silence
 
 # ── XML / iXML helpers ──────────────────────────────────────────────────────────
@@ -164,3 +166,81 @@ def extract_bpm(y: np.ndarray, sr: int) -> float:
     onset_env = librosa.onset.onset_strength(y=y, sr=sr)
     tempo, _ = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr)
     return float(np.atleast_1d(tempo)[0])
+
+
+# ── Playback ─────────────────────────────────────────────────────────────────
+
+def play_audio(
+    data: np.ndarray,
+    samplerate: int,
+    on_finished: Callable | None = None,
+) -> None:
+    """
+    Play *data* (float32/64, mono or stereo) non-blocking.
+    Calls *on_finished()* on a background thread when playback ends.
+    """
+    sd.stop()
+
+    def _worker() -> None:
+        sd.play(data.astype(np.float32), samplerate)
+        sd.wait()  # blocks the background thread only
+        if on_finished:
+            on_finished()
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def stop_playback() -> None:
+    """Immediately stop any active sounddevice playback."""
+    sd.stop()
+
+
+def build_track_preview(data: np.ndarray, channel_idx: int) -> np.ndarray:
+    """
+    Extract *channel_idx* (0-based) from multichannel *data* and return a
+    stereo float32 array normalised to -1 dBFS peak for comfortable listening.
+    """
+    mono = data[:, channel_idx].astype(np.float64)
+    peak = np.max(np.abs(mono))
+    if peak > 0:
+        mono = mono / peak * 0.891  # -1 dBFS
+    return np.column_stack([mono, mono]).astype(np.float32)
+
+
+def build_mix_preview(
+    data: np.ndarray,
+    active_tracks: list[dict[str, Any]],
+    samplerate: int,
+    loudness_mode: str,
+) -> np.ndarray:
+    """
+    Build a normalised stereo float32 preview mix ready for sounddevice playback.
+    Falls back to peak normalisation when LUFS measurement is unreliable.
+    """
+    import pyloudnorm as pyln
+
+    stereo = build_stereo_mix(data, active_tracks)  # float64
+
+    # Guard: silent mix — skip normalisation to avoid divide-by-zero
+    if np.max(np.abs(stereo)) == 0.0:
+        return stereo.astype(np.float32)
+
+    if loudness_mode == "-1dBFS":
+        stereo = pyln.normalize.peak(stereo, -1.0)
+    elif loudness_mode == "-12dB LUFS":
+        meter = pyln.Meter(samplerate)
+        try:
+            loudness = meter.integrated_loudness(stereo)
+            if np.isfinite(loudness):
+                stereo = pyln.normalize.loudness(stereo, loudness, -12.0)
+            else:
+                stereo = pyln.normalize.peak(stereo, -1.0)
+        except Exception:
+            stereo = pyln.normalize.peak(stereo, -1.0)
+    else:
+        # no normalisation — still protect against clipping
+        peak = np.max(np.abs(stereo))
+        if peak > 1.0:
+            stereo = stereo / peak
+
+    return stereo.astype(np.float32)

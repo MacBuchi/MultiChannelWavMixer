@@ -1,102 +1,191 @@
 # MultiChannelWavMixer
-Simple Downmix tool for Multichannel WV files compatible to RME Durec format
 
-For installation Python environment is required. Use requirements.txt to install all dependencies.
+A modern, dark-themed desktop tool for downmixing multichannel WAV files (RME Durec format) to stereo — with per-track volume, pan, live waveform preview, and in-app audio playback.
 
-## Description
+---
 
-`MultiChannelWavMixer.py` is a Python script designed to downmix multichannel WAV files into stereo or other channel configurations. It is particularly compatible with the RME Durec format, making it suitable for audio professionals who need to process recordings from RME audio interfaces.
+## Features
 
-### Installation
+- Load one or multiple multichannel WAV files and batch-process them
+- Automatically reads **iXML metadata** embedded in the WAV file to identify track names and channel order
+- Per-track controls: **index**, **mixdown toggle**, **volume slider** (0 – 2×), **pan slider** (L – R)
+  - Double-click any slider to reset to its default (volume → 1.0, pan → 0.5)
+- **Per-track playback** — click ▶ on any row to audition that channel in isolation, peak-normalised to -1 dBFS
+- **Listen Mix ▶** — preview the full stereo mix with the current loudness-normalisation setting applied, without rendering a file
+- **Waveform preview** — renders a mini amplitude plot for every channel in the first file
+- **Loudness normalisation**: none / -1 dBFS peak (default) / -12 dB LUFS
+- **Automatic BPM detection** (librosa) — embedded in the output filename
+- **Phase correction** — detects and fixes phase inversion during the export pipeline
+- **Output format**: MP3 or WAV
+- **Batch export** — processes every loaded file with a progress dialog
+- Persists channel settings in **MixConf.json** and restores them on next load
+- Compatible with **RME Durec** multichannel recorder format
+
+---
+
+## Requirements
+
+- Python ≥ 3.13
+- [uv](https://docs.astral.sh/uv/) package manager
+
+---
+
+## Installation & setup
+
 ```sh
-python -m venv .venv
-source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
-pip install -r requirements.txt
+# 1. Clone the repo
+git clone https://github.com/MacBuchi/MultiChannelWavMixer.git
+cd MultiChannelWavMixer
+
+# 2. Create the virtual environment and install all dependencies
+uv sync
 ```
 
-### Features
+That's it — `uv sync` reads `pyproject.toml`, creates `.venv`, and installs every dependency (including `audioop-lts` for Python 3.13 compatibility).
 
-- Downmix multichannel WAV files to stereo based on custom channel configurations.
-- Compatible with RME Durec format.
-- Supports batch processing of multiple files.
-- Customizable downmix parameters.
-- optional WAV or MP3 output
-- Save Configuration in a config file (MixConf.json)
+---
 
-#### added 2025-02-09
-  - add Loudness normalization feature with option -1dB Peak (default), -12dB LUFS and none (no normalization)
+## Usage
 
-#### added 2025-02-05
-  - double-click Volume slider >> set to 1.0
-  - double-cklick Pan slider >> set to 0.5
-  - Preview of audio channels using the first listed WAV file given
-
-### added 2025-02-13
-  - minor update for preview (close figures after creation)
-  - add Librosa to do automatic BPM detection and mention in mp3
-
-### Usage
-
-To use `MultiChannelWavMixer.py`, run the script with the desired input and output file paths, along with any optional parameters for custom downmixing.
-
-#### Example
 ```sh
+uv run MultiChannelWavMixer.py
+```
+
+Or activate the venv and run directly:
+
+```sh
+source .venv/bin/activate
 python MultiChannelWavMixer.py
 ```
 
-### GUI Layout
+> **Never** run with the system Python (`/usr/bin/python3` or `/opt/homebrew/bin/python3`) — dependencies are only installed inside `.venv`.
 
-The GUI consists of the following elements:
+---
 
-- **Top Frame:**
-  - Load WAV button
-  - Preview button
-  - Select output folder button
-  - Toggle output format button
-  - Mix to Stereo button
-  - Loudness normalization dropdown menu
+## GUI walkthrough
 
-- **Bottom Frame:**
-  - Output Path label
-  - Output folder label
+### Toolbar
 
-- **Frame Controls:**
-  - Index entry
-  - Mixdown checkbox
-  - Name label
-  - Volume slider
-  - Pan slider
+| Control | Description |
+|---|---|
+| **Load WAV** | Open one or more multichannel WAV files; iXML metadata is parsed automatically |
+| **Waveforms** | Render a mini waveform thumbnail for every track |
+| **Output Folder** | Choose the export destination (auto-set to source folder on load) |
+| **Loudness** | Select the normalisation target: `none`, `-1dBFS`, or `-12dB LUFS` |
+| **Format** | Toggle between `MP3` and `WAV` export |
+| **Listen Mix ▶** | Preview the current mix in real time (uses the selected loudness setting) |
+| **Mix to Stereo ▶** | Export all loaded files to disk |
 
+### Track rows
 
-Rough preview of first WAV File helps to quickly identify the used tracks
-![Preview Feature](doc/Preview.png)
+| Column | Description |
+|---|---|
+| **#** | Channel index (1-based, editable) |
+| **Mix** | Checkbox — include this track in the mixdown |
+| **Track Name** | Name read from iXML |
+| **Volume** | 0 – 2× gain slider; live numeric readout |
+| **Pan** | L (0) – R (1) slider; live numeric readout |
+| **▶** | Play this channel in isolation; click again or click another ▶ to stop |
+| **Waveform** | Mini amplitude plot (appears after clicking *Waveforms*) |
 
-### Structure
-```mermaid
-graph LR;
-    A[Main GUI Window Initialization] --> B[Load WAV File]
-    B --> C[Parse iXML Data]
-    B --> D[Load Mix Configuration]
-    B --> E[Update GUI with Track Information]
-    B --> F[Enable Preview Button]
-    A --> G[Mix to Stereo]
-    G --> H[Update Mix Configuration]
-    G --> I[Create Progress Bar Window]
-    G --> J[Process Each WAV File]
-    J --> K[Read Audio Data]
-    J --> L[Mix Tracks to Stereo]
-    J --> M[Apply Loudness Normalization]
-    J --> N[Export Mixed Audio]
-    G --> O[Open Output Folder]
-    G --> P[Display Success Message]
-    A --> Q[Preview Tracks]
-    Q --> R[Display Audio Amplitude]
-    A --> S[Helper Functions]
-    S --> T[load_mix_config]
-    S --> U[save_mix_config]
-    S --> V[clean_xml]
-    S --> W[parse_ixml]
-    S --> X[update_mix_config]
-    S --> Y[extract_bpm]
-    S --> Z[process_audio]
+### Status bar
+
+Displays the currently selected output folder.
+
+---
+
+## Running tests
+
+```sh
+# Run the full test suite
+uv run pytest -v
+
+# With coverage report
+uv run pytest --cov=mixer_utils --cov-report=term-missing
 ```
+
+All 60+ tests are GUI-free and live in `tests/test_mixer_utils.py`.
+
+---
+
+## Project structure
+
+```
+MultiChannelWavMixer/
+├── MultiChannelWavMixer.py   # GUI application (customtkinter)
+├── mixer_utils.py            # Pure audio logic — no GUI dependency
+├── MixConf.json              # Persisted channel configuration
+├── pyproject.toml            # UV project & dependency declaration
+├── .python-version           # Pins Python 3.13
+├── requirements.txt          # Legacy reference (use uv sync instead)
+├── tests/
+│   └── test_mixer_utils.py   # Unit tests for mixer_utils
+└── doc/
+    └── Preview.png
+```
+
+### `mixer_utils.py` public API
+
+| Function | Description |
+|---|---|
+| `clean_xml(data)` | Strip junk before `<?xml` and remove non-printable chars |
+| `parse_tracks_from_ixml(ixml_str)` | Parse iXML string → list of plain-dict track descriptors |
+| `load_raw_config(path)` | Load `MixConf.json` as plain Python dicts |
+| `save_raw_config(config, path)` | Persist channel config to JSON |
+| `build_stereo_mix(data, tracks)` | Downmix multichannel numpy array to stereo |
+| `process_audio(wav_in, ...)` | Phase check, normalise, strip silence, apply fades |
+| `extract_bpm(y, sr)` | Estimate tempo via librosa |
+| `build_track_preview(data, ch)` | Extract one channel as peak-normalised stereo float32 |
+| `build_mix_preview(data, tracks, sr, mode)` | Build normalised stereo preview mix |
+| `play_audio(data, sr, on_finished)` | Non-blocking numpy playback via sounddevice |
+| `stop_playback()` | Immediately stop active playback |
+
+---
+
+## Architecture
+
+```mermaid
+graph TD
+    A[MultiChannelWavMixer.py\nGUI layer] -->|imports| B[mixer_utils.py\nPure logic]
+    A --> C[MixConf.json\nChannel config]
+
+    subgraph GUI
+        A1[Toolbar] --> A2[Load WAV]
+        A1 --> A3[Listen Mix]
+        A1 --> A4[Mix to Stereo]
+        A5[Track rows] --> A6[Per-track ▶ button]
+        A5 --> A7[Volume / Pan sliders]
+        A5 --> A8[Waveform preview]
+    end
+
+    subgraph mixer_utils
+        B1[iXML parsing] --> B2[clean_xml]
+        B1 --> B3[parse_tracks_from_ixml]
+        B4[Config I/O] --> B5[load_raw_config]
+        B4 --> B6[save_raw_config]
+        B7[Audio engine] --> B8[build_stereo_mix]
+        B7 --> B9[process_audio]
+        B7 --> B10[extract_bpm]
+        B11[Playback] --> B12[build_track_preview]
+        B11 --> B13[build_mix_preview]
+        B11 --> B14[play_audio / stop_playback]
+    end
+
+    subgraph tests
+        T[test_mixer_utils.py] -->|tests| B
+    end
+```
+
+---
+
+## Changelog
+
+| Date | Change |
+|---|---|
+| 2026-02-19 | Migrate to **uv** + `pyproject.toml`; upgrade to Python 3.13; add `audioop-lts` |
+| 2026-02-19 | Full UI rewrite with **customtkinter** (dark mode, sliders with live readout, segmented format button, status bar) |
+| 2026-02-19 | Extract pure logic into `mixer_utils.py`; add 60+ unit tests |
+| 2026-02-19 | Per-track ▶ playback buttons; **Listen Mix ▶** toolbar button for live mix preview |
+| 2025-02-13 | Add librosa BPM detection; close waveform figures after creation |
+| 2025-02-09 | Add loudness normalisation: -1 dBFS peak, -12 dB LUFS, none |
+| 2025-02-05 | Double-click sliders to reset; waveform amplitude preview |

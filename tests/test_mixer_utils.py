@@ -11,6 +11,7 @@ import json
 import os
 import struct
 import tempfile
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -18,13 +19,17 @@ from pydub import AudioSegment
 
 # ── module under test ─────────────────────────────────────────────────────────
 from mixer_utils import (
+    build_mix_preview,
     build_stereo_mix,
+    build_track_preview,
     clean_xml,
     extract_bpm,
     load_raw_config,
     parse_tracks_from_ixml,
+    play_audio,
     process_audio,
     save_raw_config,
+    stop_playback,
 )
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -381,3 +386,153 @@ class TestExtractBpm:
         bpm = extract_bpm(y, 22_050)
         # Should not raise; result is librosa's default fallback
         assert isinstance(bpm, float)
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  build_track_preview                                                        ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+class TestBuildTrackPreview:
+    def test_output_shape_is_stereo(self):
+        data = _make_multichannel_array(n_samples=1000, n_channels=3)
+        result = build_track_preview(data, channel_idx=0)
+        assert result.shape == (1000, 2)
+
+    def test_output_dtype_is_float32(self):
+        data = _make_multichannel_array(n_samples=1000, n_channels=2)
+        result = build_track_preview(data, channel_idx=0)
+        assert result.dtype == np.float32
+
+    def test_both_channels_are_identical(self):
+        """Mono source should be duplicated to both channels."""
+        data = _make_multichannel_array(n_samples=500, n_channels=2)
+        result = build_track_preview(data, channel_idx=0)
+        assert np.allclose(result[:, 0], result[:, 1])
+
+    def test_peak_is_normalised_to_minus_1_dbfs(self):
+        """Peak must be ≈ 0.891 (≈1 dBFS)."""
+        data = _make_multichannel_array(n_samples=44_100, n_channels=1)
+        result = build_track_preview(data, channel_idx=0)
+        peak = float(np.max(np.abs(result)))
+        assert abs(peak - 0.891) < 0.01
+
+    def test_silent_channel_stays_silent(self):
+        data = np.zeros((1000, 2))
+        result = build_track_preview(data, channel_idx=0)
+        assert np.all(result == 0.0)
+
+    def test_correct_channel_is_extracted(self):
+        """Channel 1 should produce different content from channel 0."""
+        data = _make_multichannel_array(n_samples=1000, n_channels=2)
+        r0 = build_track_preview(data, channel_idx=0)
+        r1 = build_track_preview(data, channel_idx=1)
+        assert not np.allclose(r0, r1)
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  build_mix_preview                                                          ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+class TestBuildMixPreview:
+    SR = 44_100
+
+    def _tracks(self, n_ch: int) -> list:
+        return [
+            {"index": i + 1, "volume": 1.0, "pan": 0.5}
+            for i in range(n_ch)
+        ]
+
+    def test_output_shape_is_stereo(self):
+        data = _make_multichannel_array(n_samples=self.SR, n_channels=2)
+        result = build_mix_preview(data, self._tracks(2), self.SR, "-1dBFS")
+        assert result.shape == (self.SR, 2)
+
+    def test_output_dtype_is_float32(self):
+        data = _make_multichannel_array(n_samples=self.SR, n_channels=2)
+        result = build_mix_preview(data, self._tracks(2), self.SR, "none")
+        assert result.dtype == np.float32
+
+    def test_peak_normalisation_clamps_to_minus_1_dbfs(self):
+        data = _make_multichannel_array(n_samples=self.SR, n_channels=2)
+        result = build_mix_preview(data, self._tracks(2), self.SR, "-1dBFS")
+        peak = float(np.max(np.abs(result)))
+        assert peak <= 1.0
+
+    def test_no_normalisation_mode_prevents_clipping(self):
+        """Even in 'none' mode the output must not exceed 1.0."""
+        # Use volume=2 to push the mix above 1.0 before the clamp
+        loud_tracks = [{"index": 1, "volume": 2.0, "pan": 0.5}]
+        data = _make_multichannel_array(n_samples=self.SR, n_channels=1)
+        result = build_mix_preview(data, loud_tracks, self.SR, "none")
+        assert float(np.max(np.abs(result))) <= 1.0
+
+    def test_lufs_mode_returns_valid_audio(self):
+        """LUFS normalisation should produce finite, non-silent output."""
+        data = _make_multichannel_array(n_samples=self.SR * 5, n_channels=2)
+        result = build_mix_preview(data, self._tracks(2), self.SR, "-12dB LUFS")
+        assert np.all(np.isfinite(result))
+        assert np.max(np.abs(result)) > 0
+
+    def test_empty_tracks_returns_silence(self):
+        data = _make_multichannel_array(n_samples=self.SR, n_channels=2)
+        result = build_mix_preview(data, [], self.SR, "-1dBFS")
+        assert np.all(result == 0.0)
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  play_audio / stop_playback  (sounddevice mocked)                          ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+class TestPlayback:
+    """sounddevice is mocked so tests run without an audio device."""
+
+    @pytest.fixture(autouse=True)
+    def mock_sd(self):
+        """Patch sounddevice for every test in this class."""
+        with patch("mixer_utils.sd") as mock:
+            # Make sd.wait() return immediately
+            mock.wait.return_value = None
+            yield mock
+
+    def test_stop_calls_sd_stop(self, mock_sd):
+        stop_playback()
+        mock_sd.stop.assert_called_once()
+
+    def test_play_audio_calls_sd_stop_first(self, mock_sd):
+        """Any previous playback must be stopped before starting a new one."""
+        data = np.zeros((100, 2), dtype=np.float32)
+        play_audio(data, 44_100)
+        mock_sd.stop.assert_called()
+
+    def test_play_audio_passes_float32_data(self, mock_sd):
+        """Data must be cast to float32 before being sent to sounddevice."""
+        data = np.ones((100, 2), dtype=np.float64)
+        play_audio(data, 44_100)
+        # Give the background thread a moment to call sd.play
+        import time; time.sleep(0.05)
+        args, _ = mock_sd.play.call_args
+        assert args[0].dtype == np.float32
+
+    def test_play_audio_passes_correct_samplerate(self, mock_sd):
+        data = np.zeros((100, 2), dtype=np.float32)
+        play_audio(data, 48_000)
+        import time; time.sleep(0.05)
+        _, kwargs_or_args = mock_sd.play.call_args
+        # samplerate is the second positional argument
+        args, _ = mock_sd.play.call_args
+        assert args[1] == 48_000
+
+    def test_on_finished_is_called_after_playback(self, mock_sd):
+        """The callback must be invoked once playback ends."""
+        import time
+        finished = MagicMock()
+        data = np.zeros((100, 2), dtype=np.float32)
+        play_audio(data, 44_100, on_finished=finished)
+        time.sleep(0.1)
+        finished.assert_called_once()
+
+    def test_on_finished_not_required(self, mock_sd):
+        """Omitting on_finished must not raise."""
+        data = np.zeros((100, 2), dtype=np.float32)
+        play_audio(data, 44_100)  # no callback
+        import time; time.sleep(0.05)  # let thread finish

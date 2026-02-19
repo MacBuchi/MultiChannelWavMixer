@@ -18,6 +18,10 @@ from mixer_utils import (
     build_stereo_mix,
     process_audio,
     extract_bpm,
+    play_audio,
+    stop_playback,
+    build_track_preview,
+    build_mix_preview,
 )
 
 # ─── Appearance ────────────────────────────────────────────────────────────────
@@ -94,11 +98,15 @@ def load_wav():
         if name in mix_config:
             track.update(mix_config[name])
 
+    global _wav_data, _wav_samplerate
+    _wav_data, _wav_samplerate = sf.read(file_path, dtype="float64")
+
     _rebuild_track_rows()
 
     path = os.path.dirname(file_path)
     set_output_folder(path)
     btn_preview.configure(state="normal")
+    btn_listen_mix.configure(state="normal")
 
 
 def _rebuild_track_rows():
@@ -108,8 +116,8 @@ def _rebuild_track_rows():
 
     # ── Header row ──────────────────────────────────────────────────────────
     HEADER_FONT = ctk.CTkFont(size=12, weight="bold")
-    headers = ["#", "Mix", "Track Name", "Volume", "", "Pan", ""]
-    col_widths = [40, 40, 185, 120, 38, 120, 38]
+    headers    = ["#",  "Mix", "Track Name", "Volume", "",   "Pan", "",   "Play"]
+    col_widths = [ 40,   40,    185,           120,      38,   120,   38,   42  ]
     for col, (text, w) in enumerate(zip(headers, col_widths)):
         ctk.CTkLabel(
             frame_controls, text=text, width=w,
@@ -174,6 +182,80 @@ def _rebuild_track_rows():
             frame_controls, textvariable=pan_str, width=38,
             font=ctk.CTkFont(size=11), text_color=("gray40", "gray70"), anchor="w"
         ).grid(row=i, column=6, padx=(0, 4), pady=3, sticky="w")
+
+        # Per-track play button
+        play_btn = ctk.CTkButton(
+            frame_controls, text="\u25b6", width=34, height=28,
+            font=ctk.CTkFont(size=11),
+            fg_color=("gray70", "gray30"),
+            hover_color=("gray55", "gray45"),
+            text_color=("gray15", "gray90"),
+        )
+        play_btn.configure(command=lambda t=track, b=play_btn: _toggle_track_play(t, b))
+        play_btn.grid(row=i, column=7, padx=(6, 4), pady=3)
+
+
+def _reset_active_btn() -> None:
+    """Reset the currently active play button back to ▶ (safe to call from any thread via root.after)."""
+    global _active_play_btn
+    if _active_play_btn is not None:
+        try:
+            _active_play_btn.configure(text="\u25b6")
+        except Exception:
+            pass
+        _active_play_btn = None
+
+
+def _toggle_track_play(track: dict, btn) -> None:
+    """Play / stop a single track channel."""
+    global _active_play_btn, _wav_data, _wav_samplerate
+    if _active_play_btn is btn:
+        # second click on same button → stop
+        stop_playback()
+        _reset_active_btn()
+        return
+    # stop whatever was playing before
+    stop_playback()
+    _reset_active_btn()
+    if _wav_data is None:
+        return
+    idx = track["index"].get() - 1
+    preview = build_track_preview(_wav_data, idx)
+    _active_play_btn = btn
+    btn.configure(text="\u25a0")
+    play_audio(preview, _wav_samplerate,
+               on_finished=lambda: root.after(0, _reset_active_btn))
+
+
+def preview_mix() -> None:
+    """Build a normalised stereo preview of the current mix and play it."""
+    global _active_play_btn, _wav_data, _wav_samplerate
+    if _wav_data is None:
+        return
+    stop_playback()
+    _reset_active_btn()
+    active_tracks = [
+        {"index": t["index"].get(), "volume": t["volume"].get(), "pan": t["pan"].get()}
+        for t in tracks if t["use_for_mixdown"].get()
+    ]
+    if not active_tracks:
+        messagebox.showwarning("Preview Mix", "No tracks selected for mixdown.")
+        return
+    preview = build_mix_preview(_wav_data, active_tracks, _wav_samplerate, loudness_option.get())
+    _active_play_btn = btn_listen_mix
+    btn_listen_mix.configure(text="\u25a0 Stop")
+    play_audio(preview, _wav_samplerate,
+               on_finished=lambda: root.after(0, _reset_listen_mix_btn))
+
+
+def _reset_listen_mix_btn() -> None:
+    global _active_play_btn
+    try:
+        btn_listen_mix.configure(text="Listen Mix \u25b6")
+    except Exception:
+        pass
+    if _active_play_btn is btn_listen_mix:
+        _active_play_btn = None
 
 
 def update_mix_config():
@@ -307,11 +389,11 @@ def preview_tracks():
 
     data, _ = sf.read(file_paths[0])
 
-    # Header for the preview column
+    # Header for the preview column (col 8 — after the play button at col 7)
     ctk.CTkLabel(
         frame_controls, text="Waveform", width=220,
         font=ctk.CTkFont(size=12, weight="bold"), text_color=("gray60", "gray50")
-    ).grid(row=0, column=7, padx=(8, 4), pady=(6, 4))
+    ).grid(row=0, column=8, padx=(8, 4), pady=(6, 4))
 
     for i, track in enumerate(tracks, start=1):
         idx = track["index"].get() - 1
@@ -323,7 +405,7 @@ def preview_tracks():
         ax.axis("off")
 
         fig_canvas = FigureCanvasTkAgg(fig, master=frame_controls)
-        fig_canvas.get_tk_widget().grid(row=i, column=7, padx=(8, 4), pady=2)
+        fig_canvas.get_tk_widget().grid(row=i, column=8, padx=(8, 4), pady=2)
         fig_canvas.draw()
         plt.close(fig)
 
@@ -345,8 +427,8 @@ def set_output_folder(inFilePath=None):
 # ─── Main window ───────────────────────────────────────────────────────────────
 root = ctk.CTk()
 root.title("Multichannel WAV Mixer")
-root.geometry("960x560")
-root.minsize(800, 420)
+root.geometry("1060x560")
+root.minsize(900, 420)
 
 def bring_to_front(event=None):
     root.attributes("-topmost", True)
@@ -361,6 +443,13 @@ output_folder = tk.StringVar(value="")
 loudness_option = tk.StringVar(value="-1dBFS")
 output_format = tk.StringVar(value="mp3")
 
+# Cached PCM data for the first loaded file (used by track / mix preview)
+_wav_data: np.ndarray | None = None
+_wav_samplerate: int = 44_100
+
+# The play button currently showing ■ (None when idle)
+_active_play_btn = None
+
 # ─── Toolbar ───────────────────────────────────────────────────────────────────
 toolbar = ctk.CTkFrame(root, corner_radius=0, height=54, fg_color=("gray85", "gray15"))
 toolbar.pack(side="top", fill="x")
@@ -373,7 +462,7 @@ btn_load = ctk.CTkButton(
 btn_load.pack(side="left", padx=(12, 6), pady=10)
 
 btn_preview = ctk.CTkButton(
-    toolbar, text="Preview", width=90, height=34, state="disabled",
+    toolbar, text="Waveforms", width=100, height=34, state="disabled",
     font=ctk.CTkFont(size=13), command=preview_tracks,
     fg_color=("gray70", "gray30"), hover_color=("gray60", "gray40"), text_color=("gray20", "gray90")
 )
@@ -414,13 +503,21 @@ fmt_btn = ctk.CTkSegmentedButton(
 fmt_btn.set("MP3")
 fmt_btn.pack(side="left", padx=(0, 10), pady=10)
 
-# Mix button (right-aligned)
+# Mix button (rightmost)
 btn_mix = ctk.CTkButton(
     toolbar, text="Mix to Stereo ▶", width=140, height=34,
     font=ctk.CTkFont(size=13, weight="bold"), command=mix_to_stereo,
     fg_color="#2d7dd2", hover_color="#1a5fa8"
 )
 btn_mix.pack(side="right", padx=(6, 14), pady=10)
+
+# Listen Mix button (left of Mix to Stereo)
+btn_listen_mix = ctk.CTkButton(
+    toolbar, text="Listen Mix \u25b6", width=130, height=34, state="disabled",
+    font=ctk.CTkFont(size=13), command=preview_mix,
+    fg_color="#2d8a4e", hover_color="#1f6438",
+)
+btn_listen_mix.pack(side="right", padx=(0, 6), pady=10)
 
 # ─── Status bar (output path) ──────────────────────────────────────────────────
 status_bar = ctk.CTkFrame(root, corner_radius=0, height=28, fg_color=("gray80", "gray12"))
