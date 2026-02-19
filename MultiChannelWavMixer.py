@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pyloudnorm as pyln
 import librosa
+from pydub import AudioSegment
 
 from mixer_utils import (
     clean_xml,
@@ -22,6 +23,7 @@ from mixer_utils import (
     stop_playback,
     build_track_preview,
     build_mix_preview,
+    db_to_linear,
 )
 
 # ─── Appearance ────────────────────────────────────────────────────────────────
@@ -36,9 +38,18 @@ def load_mix_config():
     raw = load_raw_config(CONFIG_FILE)
     mix_config = {}
     for name, values in raw.items():
+        raw_vol = values.get("volume", 0.0)
+        # Backward-compat: old configs stored linear gain (0-2). Detect by range
+        # and convert to dB so the new slider can display it correctly.
+        if 0.0 < raw_vol <= 2.0 and raw_vol != round(raw_vol):
+            vol_db = float(np.clip(20.0 * np.log10(max(raw_vol, 1e-6)), -60.0, 6.0))
+        elif raw_vol in (0.5, 1.0, 1.5, 2.0):   # common linear round numbers
+            vol_db = float(np.clip(20.0 * np.log10(max(raw_vol, 1e-6)), -60.0, 6.0))
+        else:
+            vol_db = float(np.clip(raw_vol, -60.0, 6.0))
         mix_config[name] = {
             "index": tk.IntVar(value=values.get("index", 0)),
-            "volume": tk.DoubleVar(value=values.get("volume", 1.0)),
+            "volume": tk.DoubleVar(value=vol_db),
             "pan": tk.DoubleVar(value=values.get("pan", 0.5)),
             "use_for_mixdown": tk.BooleanVar(value=values.get("use_for_mixdown", True)),
         }
@@ -72,7 +83,7 @@ def parse_ixml(file_path: str) -> list:
         {
             "index": tk.IntVar(value=t["index"]),
             "name": t["name"],
-            "volume": tk.DoubleVar(value=t["volume"]),
+            "volume": tk.DoubleVar(value=0.0),   # 0.0 dB = unity gain
             "pan": tk.DoubleVar(value=t["pan"]),
             "use_for_mixdown": tk.BooleanVar(value=t["use_for_mixdown"]),
         }
@@ -117,7 +128,7 @@ def _rebuild_track_rows():
     # ── Header row ──────────────────────────────────────────────────────────
     HEADER_FONT = ctk.CTkFont(size=12, weight="bold")
     headers    = ["#",  "Mix", "Track Name", "Volume", "",   "Pan", "",   "Play"]
-    col_widths = [ 40,   40,    185,           120,      38,   120,   38,   42  ]
+    col_widths = [ 40,   40,    185,           120,      62,   120,   38,   42  ]
     for col, (text, w) in enumerate(zip(headers, col_widths)):
         ctk.CTkLabel(
             frame_controls, text=text, width=w,
@@ -147,21 +158,28 @@ def _rebuild_track_rows():
             anchor="w", font=ctk.CTkFont(size=12)
         ).grid(row=i, column=2, padx=(4, 8), pady=3, sticky="w")
 
-        # Volume slider + live value label
+        # Volume slider (dB) + live value label
         vol_var = track["volume"]
-        vol_str = tk.StringVar(value=f"{vol_var.get():.2f}")
-        vol_var.trace_add("write", lambda *_, v=vol_var, s=vol_str: s.set(f"{v.get():.2f}"))
+
+        def _fmt_db(v: float) -> str:
+            return "-\u221e dB" if v <= -59.5 else f"{v:+.1f} dB"
+
+        vol_str = tk.StringVar(value=_fmt_db(vol_var.get()))
+        vol_var.trace_add(
+            "write",
+            lambda *_, v=vol_var, s=vol_str: s.set(_fmt_db(v.get()))
+        )
 
         vol_slider = ctk.CTkSlider(
-            frame_controls, from_=0, to=2, width=120,
-            variable=vol_var, number_of_steps=200
+            frame_controls, from_=-60, to=6, width=120,
+            variable=vol_var, number_of_steps=264
         )
         vol_slider.grid(row=i, column=3, padx=(2, 2), pady=3)
         vol_slider.bind("<Double-Button-1>",
-                        lambda e, v=vol_var: v.set(1.0))
+                        lambda e, v=vol_var: v.set(0.0))
 
         ctk.CTkLabel(
-            frame_controls, textvariable=vol_str, width=38,
+            frame_controls, textvariable=vol_str, width=62,
             font=ctk.CTkFont(size=11), text_color=("gray40", "gray70"), anchor="w"
         ).grid(row=i, column=4, padx=(0, 6), pady=3, sticky="w")
 
@@ -206,6 +224,21 @@ def _reset_active_btn() -> None:
         _active_play_btn = None
 
 
+def _reset_btn_if_current(btn) -> None:
+    """Reset *btn* to ▶ only if it is still the active play button.
+
+    Called from each stream's on_finished closure so that a finishing *old*
+    stream never accidentally resets the button of a *new* stream that has
+    already started.
+    """
+    global _active_play_btn
+    if _active_play_btn is btn:
+        try:
+            btn.configure(text="\u25b6")
+        except Exception:
+            pass
+        _active_play_btn = None
+
 def _toggle_track_play(track: dict, btn) -> None:
     """Play / stop a single track channel."""
     global _active_play_btn, _wav_data, _wav_samplerate
@@ -214,7 +247,7 @@ def _toggle_track_play(track: dict, btn) -> None:
         stop_playback()
         _reset_active_btn()
         return
-    # stop whatever was playing before
+    # stop whatever was playing before and reset its button
     stop_playback()
     _reset_active_btn()
     if _wav_data is None:
@@ -224,18 +257,27 @@ def _toggle_track_play(track: dict, btn) -> None:
     _active_play_btn = btn
     btn.configure(text="\u25a0")
     play_audio(preview, _wav_samplerate,
-               on_finished=lambda: root.after(0, _reset_active_btn))
+               on_finished=lambda b=btn: root.after(0, lambda: _reset_btn_if_current(b)))
 
 
 def preview_mix() -> None:
-    """Build a normalised stereo preview of the current mix and play it."""
+    """Build a normalised stereo preview of the current mix and play it, or stop if already playing."""
     global _active_play_btn, _wav_data, _wav_samplerate
     if _wav_data is None:
+        return
+    # Toggle: if the mix is already playing, stop it.
+    if _active_play_btn is btn_listen_mix:
+        stop_playback()
+        _reset_listen_mix_btn()
         return
     stop_playback()
     _reset_active_btn()
     active_tracks = [
-        {"index": t["index"].get(), "volume": t["volume"].get(), "pan": t["pan"].get()}
+        {
+            "index": t["index"].get(),
+            "volume": db_to_linear(t["volume"].get()),
+            "pan": t["pan"].get(),
+        }
         for t in tracks if t["use_for_mixdown"].get()
     ]
     if not active_tracks:
@@ -316,7 +358,11 @@ def mix_to_stereo():
             return
 
         plain_active = [
-            {"index": t["index"].get(), "volume": t["volume"].get(), "pan": t["pan"].get()}
+            {
+                "index": t["index"].get(),
+                "volume": db_to_linear(t["volume"].get()),
+                "pan": t["pan"].get(),
+            }
             for t in active_tracks
         ]
         stereo = build_stereo_mix(data, plain_active)
@@ -397,11 +443,13 @@ def preview_tracks():
 
     for i, track in enumerate(tracks, start=1):
         idx = track["index"].get() - 1
+        vol_linear = db_to_linear(track["volume"].get())
         fig, ax = plt.subplots(figsize=(2.8, 0.32))
         fig.patch.set_facecolor("#1e1e1e")
         ax.set_facecolor("#1e1e1e")
         sample_points = np.linspace(0, len(data[:, idx]) - 1, min(1000, len(data)), dtype=int)
-        ax.plot(data[sample_points, idx], color="#3b8ed0", linewidth=0.6)
+        ax.plot(data[sample_points, idx] * vol_linear, color="#3b8ed0", linewidth=0.6)
+        ax.set_ylim(-1.0, 1.0)   # fixed axis so tracks are comparable
         ax.axis("off")
 
         fig_canvas = FigureCanvasTkAgg(fig, master=frame_controls)

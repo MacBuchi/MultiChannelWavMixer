@@ -8,11 +8,12 @@ A modern, dark-themed desktop tool for downmixing multichannel WAV files (RME Du
 
 - Load one or multiple multichannel WAV files and batch-process them
 - Automatically reads **iXML metadata** embedded in the WAV file to identify track names and channel order
-- Per-track controls: **index**, **mixdown toggle**, **volume slider** (0 – 2×), **pan slider** (L – R)
-  - Double-click any slider to reset to its default (volume → 1.0, pan → 0.5)
-- **Per-track playback** — click ▶ on any row to audition that channel in isolation, peak-normalised to -1 dBFS
-- **Listen Mix ▶** — preview the full stereo mix with the current loudness-normalisation setting applied, without rendering a file
-- **Waveform preview** — renders a mini amplitude plot for every channel in the first file
+- Per-track controls: **index**, **mixdown toggle**, **volume slider** (-60 dB – +6 dB), **pan slider** (L – R)
+  - Double-click volume slider to reset to 0 dB (unity); double-click pan to reset to centre
+  - Volume at or below -60 dB is treated as silence (no noise floor amplification)
+- **Per-track playback** — click ▶ on any row to audition that channel in isolation, peak-normalised to -1 dBFS; click again to stop
+- **Listen Mix ▶ / ■ Stop** — preview the full stereo mix with the current loudness-normalisation setting applied, without rendering a file; click again to stop
+- **Waveform preview** — renders a mini amplitude plot for every channel; y-axis is fixed (−1 to +1) and amplitude is scaled by the current volume fader so tracks are visually comparable
 - **Loudness normalisation**: none / -1 dBFS peak (default) / -12 dB LUFS
 - **Automatic BPM detection** (librosa) — embedded in the output filename
 - **Phase correction** — detects and fixes phase inversion during the export pipeline
@@ -83,9 +84,9 @@ python MultiChannelWavMixer.py
 | **#** | Channel index (1-based, editable) |
 | **Mix** | Checkbox — include this track in the mixdown |
 | **Track Name** | Name read from iXML |
-| **Volume** | 0 – 2× gain slider; live numeric readout |
+| **Volume** | -60 dB – +6 dB gain slider; double-click to reset to 0 dB; live dB readout |
 | **Pan** | L (0) – R (1) slider; live numeric readout |
-| **▶** | Play this channel in isolation; click again or click another ▶ to stop |
+| **▶** | Play this channel in isolation (peak-normalised to -1 dBFS); click again to stop. Starting playback on another track or Listen Mix stops this one automatically. |
 | **Waveform** | Mini amplitude plot (appears after clicking *Waveforms*) |
 
 ### Status bar
@@ -104,7 +105,7 @@ uv run pytest -v
 uv run pytest --cov=mixer_utils --cov-report=term-missing
 ```
 
-All 60+ tests are GUI-free and live in `tests/test_mixer_utils.py`.
+All 71 tests are GUI-free and live in `tests/test_mixer_utils.py`.
 
 ---
 
@@ -135,10 +136,11 @@ MultiChannelWavMixer/
 | `build_stereo_mix(data, tracks)` | Downmix multichannel numpy array to stereo |
 | `process_audio(wav_in, ...)` | Phase check, normalise, strip silence, apply fades |
 | `extract_bpm(y, sr)` | Estimate tempo via librosa |
+| `db_to_linear(db, floor_db)` | Convert dB value to linear gain; returns 0.0 at or below floor |
 | `build_track_preview(data, ch)` | Extract one channel as peak-normalised stereo float32 |
 | `build_mix_preview(data, tracks, sr, mode)` | Build normalised stereo preview mix |
-| `play_audio(data, sr, on_finished)` | Non-blocking numpy playback via sounddevice |
-| `stop_playback()` | Immediately stop active playback |
+| `play_audio(data, sr, on_finished)` | Non-blocking playback via `sd.OutputStream`; only one stream open at a time; stop is signalled via callback event (no `Pa_StopStream`, no AUHAL -50 on macOS) |
+| `stop_playback()` | Signal the active stream's callback to stop; thread-safe no-op when idle |
 
 ---
 
@@ -182,9 +184,15 @@ graph TD
 
 | Date | Change |
 |---|---|
+| 2026-02-20 | Volume fader changed to dB scale (-60 – +6 dB); -60 dB treated as silence; double-click resets to 0 dB |
+| 2026-02-20 | Waveform y-axis fixed (-1 to +1); amplitude scaled by volume fader for visual comparability |
+| 2026-02-20 | Playback rewritten with `sd.OutputStream` callback + per-stream stop `Event`; `Pa_StopStream` never called → AUHAL error -50 eliminated on macOS |
+| 2026-02-20 | `_active_stream` module-level ref prevents GC-induced segfault when interacting with GUI during playback |
+| 2026-02-20 | Per-stream `on_finished` closures capture their own button ref; finishing old stream no longer resets the new stream's ■ button |
+| 2026-02-20 | Generation counter + launch thread: starting a new track while one is playing is deadlock-free |
 | 2026-02-19 | Migrate to **uv** + `pyproject.toml`; upgrade to Python 3.13; add `audioop-lts` |
 | 2026-02-19 | Full UI rewrite with **customtkinter** (dark mode, sliders with live readout, segmented format button, status bar) |
-| 2026-02-19 | Extract pure logic into `mixer_utils.py`; add 60+ unit tests |
+| 2026-02-19 | Extract pure logic into `mixer_utils.py`; add 71 unit tests |
 | 2026-02-19 | Per-track ▶ playback buttons; **Listen Mix ▶** toolbar button for live mix preview |
 | 2025-02-13 | Add librosa BPM detection; close waveform figures after creation |
 | 2025-02-09 | Add loudness normalisation: -1 dBFS peak, -12 dB LUFS, none |

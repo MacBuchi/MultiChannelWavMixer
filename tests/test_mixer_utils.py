@@ -11,6 +11,8 @@ import json
 import os
 import struct
 import tempfile
+import threading
+import time
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -23,6 +25,7 @@ from mixer_utils import (
     build_stereo_mix,
     build_track_preview,
     clean_xml,
+    db_to_linear,
     extract_bpm,
     load_raw_config,
     parse_tracks_from_ixml,
@@ -31,6 +34,7 @@ from mixer_utils import (
     save_raw_config,
     stop_playback,
 )
+import mixer_utils as _mixer_utils  # for _playback_event access
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  Helpers                                                                   ║
@@ -484,55 +488,142 @@ class TestBuildMixPreview:
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 class TestPlayback:
-    """sounddevice is mocked so tests run without an audio device."""
+    """sounddevice is mocked so tests run without an audio device.
+
+    play_audio() opens the OutputStream on a background thread that waits for
+    the previous stream to finish, so tests that need to observe the stream
+    must give the thread a moment to run (time.sleep).
+    """
 
     @pytest.fixture(autouse=True)
-    def mock_sd(self):
-        """Patch sounddevice for every test in this class."""
-        with patch("mixer_utils.sd") as mock:
-            # Make sd.wait() return immediately
-            mock.wait.return_value = None
-            yield mock
+    def reset_state(self):
+        """Reset all module-level playback state before/after every test."""
+        _mixer_utils._playback_event.clear()
+        _mixer_utils._current_stop = None
+        _mixer_utils._playback_generation = 0
+        yield
+        _mixer_utils._playback_event.clear()
+        _mixer_utils._current_stop = None
+        _mixer_utils._playback_generation = 0
 
-    def test_stop_calls_sd_stop(self, mock_sd):
+    # ── stop_playback ─────────────────────────────────────────────────────────
+
+    def test_stop_is_noop_when_not_playing(self):
+        """stop_playback() must not touch sounddevice when nothing is active."""
+        with patch("mixer_utils.sd") as mock_sd:
+            stop_playback()
+            mock_sd.stop.assert_not_called()
+            mock_sd.OutputStream.assert_not_called()
+
+    def test_stop_sets_per_stream_event(self):
+        """stop_playback() signals the current stream's stop event."""
+        stop_event = threading.Event()
+        _mixer_utils._current_stop = stop_event
         stop_playback()
-        mock_sd.stop.assert_called_once()
+        assert stop_event.is_set()
 
-    def test_play_audio_calls_sd_stop_first(self, mock_sd):
-        """Any previous playback must be stopped before starting a new one."""
-        data = np.zeros((100, 2), dtype=np.float32)
-        play_audio(data, 44_100)
-        mock_sd.stop.assert_called()
+    def test_stop_clears_current_stop_ref(self):
+        _mixer_utils._current_stop = threading.Event()
+        stop_playback()
+        assert _mixer_utils._current_stop is None
 
-    def test_play_audio_passes_float32_data(self, mock_sd):
-        """Data must be cast to float32 before being sent to sounddevice."""
-        data = np.ones((100, 2), dtype=np.float64)
-        play_audio(data, 44_100)
-        # Give the background thread a moment to call sd.play
-        import time; time.sleep(0.05)
-        args, _ = mock_sd.play.call_args
-        assert args[0].dtype == np.float32
+    # ── play_audio ────────────────────────────────────────────────────────────
 
-    def test_play_audio_passes_correct_samplerate(self, mock_sd):
-        data = np.zeros((100, 2), dtype=np.float32)
-        play_audio(data, 48_000)
-        import time; time.sleep(0.05)
-        _, kwargs_or_args = mock_sd.play.call_args
-        # samplerate is the second positional argument
-        args, _ = mock_sd.play.call_args
-        assert args[1] == 48_000
+    def test_play_creates_output_stream(self):
+        with patch("mixer_utils.sd") as mock_sd:
+            mock_stream = MagicMock()
+            mock_sd.OutputStream.return_value = mock_stream
+            play_audio(np.zeros((100, 2), dtype=np.float32), 44_100)
+            time.sleep(0.05)  # let the launch thread run
+            mock_sd.OutputStream.assert_called_once()
+            mock_stream.start.assert_called_once()
 
-    def test_on_finished_is_called_after_playback(self, mock_sd):
-        """The callback must be invoked once playback ends."""
-        import time
-        finished = MagicMock()
-        data = np.zeros((100, 2), dtype=np.float32)
-        play_audio(data, 44_100, on_finished=finished)
-        time.sleep(0.1)
-        finished.assert_called_once()
+    def test_play_passes_correct_samplerate(self):
+        with patch("mixer_utils.sd") as mock_sd:
+            mock_sd.OutputStream.return_value = MagicMock()
+            play_audio(np.zeros((100, 2), dtype=np.float32), 48_000)
+            time.sleep(0.05)
+            _, kwargs = mock_sd.OutputStream.call_args
+            assert kwargs["samplerate"] == 48_000
 
-    def test_on_finished_not_required(self, mock_sd):
-        """Omitting on_finished must not raise."""
-        data = np.zeros((100, 2), dtype=np.float32)
-        play_audio(data, 44_100)  # no callback
-        import time; time.sleep(0.05)  # let thread finish
+    def test_play_passes_correct_channel_count(self):
+        with patch("mixer_utils.sd") as mock_sd:
+            mock_sd.OutputStream.return_value = MagicMock()
+            play_audio(np.zeros((100, 3), dtype=np.float32), 44_100)
+            time.sleep(0.05)
+            _, kwargs = mock_sd.OutputStream.call_args
+            assert kwargs["channels"] == 3
+
+    def test_play_sets_playback_event(self):
+        with patch("mixer_utils.sd") as mock_sd:
+            mock_sd.OutputStream.return_value = MagicMock()
+            play_audio(np.zeros((100, 2), dtype=np.float32), 44_100)
+            time.sleep(0.05)
+            assert _mixer_utils._playback_event.is_set()
+
+    def test_second_play_signals_first_stream_to_stop(self):
+        """Starting a second stream must signal the first stream's stop event."""
+        with patch("mixer_utils.sd") as mock_sd:
+            mock_sd.OutputStream.return_value = MagicMock()
+            data = np.zeros((100, 2), dtype=np.float32)
+            play_audio(data, 44_100)
+            first_stop = _mixer_utils._current_stop
+            play_audio(data, 44_100)
+            time.sleep(0.05)
+            # first_stop must have been signalled
+            assert first_stop is None or first_stop.is_set()
+
+    def test_finished_callback_calls_on_finished(self):
+        """The OutputStream finished_callback must invoke on_finished."""
+        with patch("mixer_utils.sd") as mock_sd:
+            mock_sd.OutputStream.return_value = MagicMock()
+            finished = MagicMock()
+            play_audio(np.zeros((100, 2), dtype=np.float32), 44_100,
+                       on_finished=finished)
+            time.sleep(0.05)
+            _, kwargs = mock_sd.OutputStream.call_args
+            kwargs["finished_callback"]()
+            finished.assert_called_once()
+
+    def test_finished_callback_clears_playback_event(self):
+        with patch("mixer_utils.sd") as mock_sd:
+            mock_sd.OutputStream.return_value = MagicMock()
+            play_audio(np.zeros((100, 2), dtype=np.float32), 44_100)
+            time.sleep(0.05)
+            _, kwargs = mock_sd.OutputStream.call_args
+            kwargs["finished_callback"]()
+            assert not _mixer_utils._playback_event.is_set()
+
+    def test_on_finished_not_required(self):
+        """Omitting on_finished must not raise when finished_callback fires."""
+        with patch("mixer_utils.sd") as mock_sd:
+            mock_sd.OutputStream.return_value = MagicMock()
+            play_audio(np.zeros((100, 2), dtype=np.float32), 44_100)
+            time.sleep(0.05)
+            _, kwargs = mock_sd.OutputStream.call_args
+            kwargs["finished_callback"]()  # must not raise
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  db_to_linear                                                               ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+class TestDbToLinear:
+    def test_unity_gain(self):
+        assert db_to_linear(0.0) == pytest.approx(1.0, rel=1e-6)
+
+    def test_minus_6db(self):
+        assert db_to_linear(-6.0) == pytest.approx(10 ** (-6 / 20), rel=1e-4)
+
+    def test_plus_6db(self):
+        assert db_to_linear(6.0) == pytest.approx(10 ** (6 / 20), rel=1e-4)
+
+    def test_floor_returns_zero(self):
+        assert db_to_linear(-60.0) == 0.0
+        assert db_to_linear(-100.0) == 0.0
+
+    def test_just_above_floor_is_nonzero(self):
+        assert db_to_linear(-59.9) > 0.0
+
+    def test_custom_floor(self):
+        assert db_to_linear(-40.0, floor_db=-40.0) == 0.0
+        assert db_to_linear(-39.9, floor_db=-40.0) > 0.0

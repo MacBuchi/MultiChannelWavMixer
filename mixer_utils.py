@@ -11,6 +11,7 @@ import json
 import os
 import re
 import threading
+import time
 import xml.etree.ElementTree as ET
 from typing import Any, Callable
 
@@ -169,6 +170,33 @@ def extract_bpm(y: np.ndarray, sr: int) -> float:
 
 
 # ── Playback ─────────────────────────────────────────────────────────────────
+#
+# Design goals:
+#  1. Only one stream is ever open at a time.
+#  2. Stop is signalled via a per-stream Event checked inside the *audio
+#     callback*, so Pa_StopStream is never called externally (avoids AUHAL -50).
+#  3. Starting a new stream while one is running is deadlock-free: the launch
+#     thread waits (polling, ≤200 ms) for the old stream's finished_callback to
+#     confirm teardown before opening a new OutputStream.
+#  4. A generation counter ensures only the *latest* click's background thread
+#     opens a stream; superseded threads exit silently.
+
+_playback_event: threading.Event = threading.Event()   # set ↔ stream is alive
+_current_stop: threading.Event | None = None            # signal current stream
+_playback_generation: int = 0                           # incremented on each launch
+_playback_lock: threading.Lock = threading.Lock()       # guards above globals
+_active_stream: object | None = None                    # keeps OutputStream alive
+
+
+def db_to_linear(db: float, floor_db: float = -60.0) -> float:
+    """Convert a dB value to a linear amplitude multiplier.
+
+    Values at or below *floor_db* return 0.0 (treated as silence).
+    """
+    if db <= floor_db:
+        return 0.0
+    return float(10.0 ** (db / 20.0))
+
 
 def play_audio(
     data: np.ndarray,
@@ -177,28 +205,98 @@ def play_audio(
 ) -> None:
     """
     Play *data* (float32/64, mono or stereo) non-blocking.
-    Calls *on_finished()* on a background thread when playback ends.
+
+    * Only one stream is open at a time — calling this while something is
+      already playing stops the previous stream first.
+    * Stopping uses a per-stream ``threading.Event`` checked by the audio
+      callback, so ``Pa_StopStream`` is never called (no AUHAL -50 on macOS).
+    * The actual ``sd.OutputStream`` is opened on a background thread that
+      waits for the previous stream to fully teardown before proceeding.
     """
-    sd.stop()
+    global _current_stop, _playback_generation
 
-    def _worker() -> None:
-        sd.play(data.astype(np.float32), samplerate)
-        sd.wait()  # blocks the background thread only
-        if on_finished:
-            on_finished()
+    with _playback_lock:
+        # Signal the running stream (if any) to stop gracefully.
+        if _current_stop is not None:
+            _current_stop.set()
+        # Bump the generation so any previous pending launch thread exits.
+        _playback_generation += 1
+        my_generation = _playback_generation
+        my_stop = threading.Event()
+        _current_stop = my_stop
 
-    threading.Thread(target=_worker, daemon=True).start()
+    buf = data.astype(np.float32)
+    channels = buf.shape[1] if buf.ndim > 1 else 1
+    n_frames = len(buf)
+
+    def _launch() -> None:
+        # Wait for the previous stream's finished_callback to fire (≤200 ms).
+        deadline = time.monotonic() + 0.2
+        while _playback_event.is_set() and time.monotonic() < deadline:
+            time.sleep(0.005)
+
+        # If a newer click arrived while we were waiting, bail out.
+        with _playback_lock:
+            if _playback_generation != my_generation:
+                return
+
+        pos = [0]
+        _playback_event.set()
+
+        def _callback(outdata: np.ndarray, frames: int, time_info, status) -> None:  # noqa: ARG001
+            if my_stop.is_set():
+                outdata[:] = 0
+                raise sd.CallbackStop()
+            remaining = n_frames - pos[0]
+            if remaining <= 0:
+                outdata[:] = 0
+                raise sd.CallbackStop()
+            take = min(frames, remaining)
+            outdata[:take] = buf[pos[0] : pos[0] + take]
+            if take < frames:
+                outdata[take:] = 0
+            pos[0] += take
+
+        def _finished() -> None:
+            global _active_stream
+            _active_stream = None          # release the stream ref *after* PA is done
+            _playback_event.clear()
+            if on_finished:
+                on_finished()
+
+        global _active_stream
+        stream = sd.OutputStream(
+            samplerate=samplerate,
+            channels=channels,
+            callback=_callback,
+            finished_callback=_finished,
+            dtype="float32",
+        )
+        _active_stream = stream            # prevent GC while callback is alive
+        stream.start()
+
+    threading.Thread(target=_launch, daemon=True).start()
 
 
 def stop_playback() -> None:
-    """Immediately stop any active sounddevice playback."""
-    sd.stop()
+    """Signal the active stream's callback to stop on its next buffer.
+
+    Thread-safe and always a no-op when nothing is playing.  Never calls
+    ``Pa_StopStream``, so the AUHAL error -50 on macOS does not occur.
+    """
+    global _current_stop
+    with _playback_lock:
+        if _current_stop is not None:
+            _current_stop.set()
+            _current_stop = None
 
 
 def build_track_preview(data: np.ndarray, channel_idx: int) -> np.ndarray:
     """
     Extract *channel_idx* (0-based) from multichannel *data* and return a
     stereo float32 array normalised to -1 dBFS peak for comfortable listening.
+    Note: normalisation here is only for audition comfort; it does NOT reflect
+    the channel's fader level — that is applied only in the mix pipeline.
     """
     mono = data[:, channel_idx].astype(np.float64)
     peak = np.max(np.abs(mono))
