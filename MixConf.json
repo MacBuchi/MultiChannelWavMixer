@@ -1,39 +1,39 @@
 {
     "BenIn M 1": {
         "index": 1,
-        "volume": 1.0,
+        "volume": 0.41,
         "pan": 0.5,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "OverHead 2 ": {
         "index": 2,
-        "volume": 1.0,
-        "pan": 0.5,
-        "use_for_mixdown": true
+        "volume": 1.68,
+        "pan": 0.44,
+        "use_for_mixdown": false
     },
     "GuitarIn 34 L": {
         "index": 3,
         "volume": 1.0,
         "pan": 0.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "GuitarIn 34 R": {
         "index": 4,
         "volume": 1.0,
         "pan": 1.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "KeysIn 56 L": {
         "index": 5,
         "volume": 1.0,
         "pan": 0.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "KeysIn 56 R": {
         "index": 6,
         "volume": 1.0,
         "pan": 1.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "ScratchIn13 L": {
         "index": 7,
@@ -49,27 +49,27 @@
     },
     "BassIn 15": {
         "index": 9,
-        "volume": 1.0,
+        "volume": 1.21,
         "pan": 0.5,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "KickIn 16": {
         "index": 10,
         "volume": 1.0,
-        "pan": 0.5,
-        "use_for_mixdown": true
+        "pan": 0.12,
+        "use_for_mixdown": false
     },
     "SnareIn 17": {
         "index": 11,
         "volume": 1.0,
         "pan": 0.5,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "TOMIn 18": {
         "index": 12,
         "volume": 1.0,
         "pan": 0.5,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "VocEfect 19 L": {
         "index": 13,
@@ -85,51 +85,51 @@
     },
     "Line Out 1": {
         "index": 15,
-        "volume": 1.0,
+        "volume": 0.71,
         "pan": 0.5,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "Line Out 2": {
         "index": 16,
-        "volume": 1.0,
+        "volume": 0.74,
         "pan": 0.5,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "In Ear 1 L": {
         "index": 17,
         "volume": 1.0,
         "pan": 0.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "In Ear 1 R": {
         "index": 18,
         "volume": 1.0,
         "pan": 1.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "In Ear 2 L": {
         "index": 19,
         "volume": 1.0,
         "pan": 0.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "In Ear 2 R": {
         "index": 20,
         "volume": 1.0,
         "pan": 1.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "Phones L": {
         "index": 21,
         "volume": 1.0,
         "pan": 0.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "Phones R": {
         "index": 22,
         "volume": 1.0,
         "pan": 1.0,
-        "use_for_mixdown": true
+        "use_for_mixdown": false
     },
     "Ben_Out S L": {
         "index": 23,
@@ -157,20 +157,20 @@
     },
     "Keys_O S L": {
         "index": 27,
-        "volume": 1.0,
-        "pan": 0.0,
-        "use_for_mixdown": true
+        "volume": 1.38,
+        "pan": 0.41,
+        "use_for_mixdown": false
     },
     "Keys_O S R": {
         "index": 28,
-        "volume": 1.0,
-        "pan": 1.0,
-        "use_for_mixdown": true
+        "volume": 1.47,
+        "pan": 0.91,
+        "use_for_mixdown": false
     },
     "Guitar_O S L": {
         "index": 29,
         "volume": 1.0,
-        "pan": 0.0,
+        "pan": 0.31,
         "use_for_mixdown": true
     },
     "Guitar_O S R": {
@@ -178,5 +178,95 @@
         "volume": 1.0,
         "pan": 1.0,
         "use_for_mixdown": true
+    },
+    "BlueTooth L": {
+        "index": 7,
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": false
+    },
+    "BlueTooth R": {
+        "index": 8,
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": false
+    },
+    "Trollzz": {
+        "index": 9,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "Greg": {
+        "index": 10,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "VocEfect 19": {
+        "index": 15,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "ADAT In 8": {
+        "index": 16,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": true
+    },
+    "Ben_Out S": {
+        "index": 25,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": true
+    },
+    "Bass_Out": {
+        "index": 26,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": true
+    },
+    "DKK_Out L": {
+        "index": 27,
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": false
+    },
+    "DKK_Out R": {
+        "index": 28,
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": false
+    },
+    "Greg_Axe L": {
+        "index": 7,
+        "volume": 1.0,
+        "pan": 0.0,
+        "use_for_mixdown": false
+    },
+    "Greg_Axe R": {
+        "index": 8,
+        "volume": 1.0,
+        "pan": 1.0,
+        "use_for_mixdown": false
+    },
+    "leer": {
+        "index": 18,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
+    },
+    "Keys_O S": {
+        "index": 31,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": true
+    },
+    "ADAT Out 6": {
+        "index": 32,
+        "volume": 1.0,
+        "pan": 0.5,
+        "use_for_mixdown": false
     }
 }

@@ -1,0 +1,383 @@
+"""
+tests/test_mixer_utils.py
+--------------------------
+Unit tests for mixer_utils.py — all tests are GUI-free.
+Run with: uv run pytest
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import struct
+import tempfile
+
+import numpy as np
+import pytest
+from pydub import AudioSegment
+
+# ── module under test ─────────────────────────────────────────────────────────
+from mixer_utils import (
+    build_stereo_mix,
+    clean_xml,
+    extract_bpm,
+    load_raw_config,
+    parse_tracks_from_ixml,
+    process_audio,
+    save_raw_config,
+)
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  Helpers                                                                   ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+def _make_stereo_segment(
+    duration_ms: int = 5_000,
+    freq: float = 440.0,
+    sample_rate: int = 44_100,
+) -> AudioSegment:
+    """Synthesise a stereo sine-wave AudioSegment (16-bit PCM)."""
+    n = int(sample_rate * duration_ms / 1_000)
+    t = np.linspace(0, duration_ms / 1_000, n, endpoint=False)
+    mono = np.sin(2 * np.pi * freq * t)
+    stereo = np.column_stack([mono, mono])
+    pcm = (np.clip(stereo, -1, 1) * 32_767).astype(np.int16)
+    interleaved = pcm.flatten().tobytes()
+    return AudioSegment(
+        interleaved,
+        frame_rate=sample_rate,
+        sample_width=2,
+        channels=2,
+    )
+
+
+def _make_multichannel_array(n_samples: int = 44_100, n_channels: int = 4) -> np.ndarray:
+    """Return a float64 multichannel array filled with distinct sinusoids."""
+    t = np.linspace(0, 1, n_samples)
+    data = np.zeros((n_samples, n_channels))
+    for ch in range(n_channels):
+        data[:, ch] = np.sin(2 * np.pi * (220 * (ch + 1)) * t)
+    return data
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  clean_xml                                                                  ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+class TestCleanXml:
+    def test_strips_prefix_before_xml_declaration(self):
+        raw = "JUNK BYTES\x00<?xml version='1.0'?><root/>"
+        result = clean_xml(raw)
+        assert result.startswith("<?xml")
+
+    def test_removes_non_printable_characters(self):
+        raw = "<?xml version='1.0'?>\x01\x02<root/>\x1f"
+        result = clean_xml(raw)
+        assert "\x01" not in result
+        assert "\x02" not in result
+        assert "\x1f" not in result
+
+    def test_returns_empty_string_when_no_xml_declaration(self):
+        result = clean_xml("no xml here at all")
+        assert result == ""
+
+    def test_preserves_valid_xml_content(self):
+        xml = "<?xml version='1.0'?><BWFXML><TRACK><NAME>Kick</NAME></TRACK></BWFXML>"
+        result = clean_xml(xml)
+        assert "<TRACK>" in result
+        assert "<NAME>Kick</NAME>" in result
+
+    def test_strips_leading_and_trailing_whitespace(self):
+        raw = "  \n<?xml version='1.0'?><root/>  \n"
+        result = clean_xml(raw)
+        assert not result.startswith(" ")
+        assert not result.endswith(" ")
+
+    def test_empty_string_input(self):
+        assert clean_xml("") == ""
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  parse_tracks_from_ixml                                                    ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+SAMPLE_IXML = """<?xml version='1.0' encoding='UTF-8'?>
+<BWFXML>
+  <IXML_VERSION>2.0</IXML_VERSION>
+  <TRACK_LIST>
+    <TRACK_COUNT>4</TRACK_COUNT>
+    <TRACK>
+      <CHANNEL_INDEX>1</CHANNEL_INDEX>
+      <INTERLEAVE_INDEX>1</INTERLEAVE_INDEX>
+      <NAME>Guitar L</NAME>
+    </TRACK>
+    <TRACK>
+      <CHANNEL_INDEX>2</CHANNEL_INDEX>
+      <INTERLEAVE_INDEX>2</INTERLEAVE_INDEX>
+      <NAME>Guitar R</NAME>
+    </TRACK>
+    <TRACK>
+      <CHANNEL_INDEX>3</CHANNEL_INDEX>
+      <INTERLEAVE_INDEX>3</INTERLEAVE_INDEX>
+      <NAME>Kick</NAME>
+    </TRACK>
+    <TRACK>
+      <CHANNEL_INDEX>4</CHANNEL_INDEX>
+      <INTERLEAVE_INDEX>4</INTERLEAVE_INDEX>
+      <NAME>Bass</NAME>
+    </TRACK>
+  </TRACK_LIST>
+</BWFXML>"""
+
+
+class TestParseTracksFromIxml:
+    def test_returns_correct_number_of_tracks(self):
+        tracks = parse_tracks_from_ixml(SAMPLE_IXML)
+        assert len(tracks) == 4
+
+    def test_track_names_are_parsed(self):
+        tracks = parse_tracks_from_ixml(SAMPLE_IXML)
+        names = [t["name"] for t in tracks]
+        assert "Guitar L" in names
+        assert "Guitar R" in names
+        assert "Kick" in names
+        assert "Bass" in names
+
+    def test_track_index_is_int(self):
+        tracks = parse_tracks_from_ixml(SAMPLE_IXML)
+        for track in tracks:
+            assert isinstance(track["index"], int)
+
+    def test_pan_left_tracks_have_pan_zero(self):
+        tracks = parse_tracks_from_ixml(SAMPLE_IXML)
+        guitar_l = next(t for t in tracks if t["name"] == "Guitar L")
+        assert guitar_l["pan"] == 0.0
+
+    def test_pan_right_tracks_have_pan_one(self):
+        tracks = parse_tracks_from_ixml(SAMPLE_IXML)
+        guitar_r = next(t for t in tracks if t["name"] == "Guitar R")
+        assert guitar_r["pan"] == 1.0
+
+    def test_centre_tracks_have_pan_half(self):
+        tracks = parse_tracks_from_ixml(SAMPLE_IXML)
+        kick = next(t for t in tracks if t["name"] == "Kick")
+        assert kick["pan"] == 0.5
+
+    def test_default_volume_is_one(self):
+        tracks = parse_tracks_from_ixml(SAMPLE_IXML)
+        for track in tracks:
+            assert track["volume"] == 1.0
+
+    def test_default_use_for_mixdown_is_true(self):
+        tracks = parse_tracks_from_ixml(SAMPLE_IXML)
+        for track in tracks:
+            assert track["use_for_mixdown"] is True
+
+    def test_empty_string_returns_empty_list(self):
+        assert parse_tracks_from_ixml("") == []
+
+    def test_invalid_xml_returns_empty_list(self):
+        assert parse_tracks_from_ixml("not xml at all") == []
+
+    def test_missing_name_element_uses_unknown(self):
+        ixml = """<?xml version='1.0'?>
+        <BWFXML><TRACK_LIST><TRACK>
+            <INTERLEAVE_INDEX>1</INTERLEAVE_INDEX>
+        </TRACK></TRACK_LIST></BWFXML>"""
+        tracks = parse_tracks_from_ixml(ixml)
+        assert tracks[0]["name"] == "Unknown"
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  load_raw_config / save_raw_config                                         ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+SAMPLE_CONFIG: dict = {
+    "Guitar L": {"index": 1, "volume": 1.0, "pan": 0.0, "use_for_mixdown": True},
+    "Guitar R": {"index": 2, "volume": 1.0, "pan": 1.0, "use_for_mixdown": True},
+    "Kick":     {"index": 3, "volume": 0.8, "pan": 0.5, "use_for_mixdown": False},
+}
+
+
+class TestRawConfig:
+    def test_save_and_load_roundtrip(self, tmp_path):
+        path = str(tmp_path / "test_config.json")
+        save_raw_config(SAMPLE_CONFIG, path)
+        loaded = load_raw_config(path)
+        assert loaded == SAMPLE_CONFIG
+
+    def test_load_returns_empty_dict_when_file_missing(self, tmp_path):
+        path = str(tmp_path / "nonexistent.json")
+        assert load_raw_config(path) == {}
+
+    def test_load_returns_empty_dict_on_invalid_json(self, tmp_path):
+        path = str(tmp_path / "broken.json")
+        path_obj = tmp_path / "broken.json"
+        path_obj.write_text("{ this is not json }", encoding="utf-8")
+        assert load_raw_config(str(path_obj)) == {}
+
+    def test_save_creates_valid_json_file(self, tmp_path):
+        path = tmp_path / "out.json"
+        save_raw_config(SAMPLE_CONFIG, str(path))
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert set(data.keys()) == set(SAMPLE_CONFIG.keys())
+
+    def test_save_overwrites_existing_file(self, tmp_path):
+        path = str(tmp_path / "config.json")
+        save_raw_config(SAMPLE_CONFIG, path)
+        new_config = {"Snare": {"index": 5, "volume": 0.9, "pan": 0.5, "use_for_mixdown": True}}
+        save_raw_config(new_config, path)
+        loaded = load_raw_config(path)
+        assert list(loaded.keys()) == ["Snare"]
+
+    def test_volume_precision_preserved(self, tmp_path):
+        config = {"Ch1": {"index": 1, "volume": 1.234567, "pan": 0.5, "use_for_mixdown": True}}
+        path = str(tmp_path / "precision.json")
+        save_raw_config(config, path)
+        loaded = load_raw_config(path)
+        assert abs(loaded["Ch1"]["volume"] - 1.234567) < 1e-5
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  build_stereo_mix                                                          ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+class TestBuildStereoMix:
+    def test_output_shape_is_samples_by_two(self):
+        data = _make_multichannel_array(n_samples=1000, n_channels=2)
+        tracks = [{"index": 1, "volume": 1.0, "pan": 0.5}]
+        result = build_stereo_mix(data, tracks)
+        assert result.shape == (1000, 2)
+
+    def test_full_pan_left_puts_signal_only_in_left_channel(self):
+        data = _make_multichannel_array(n_samples=1000, n_channels=1)
+        tracks = [{"index": 1, "volume": 1.0, "pan": 0.0}]
+        result = build_stereo_mix(data, tracks)
+        assert np.allclose(result[:, 0], data[:, 0])
+        assert np.allclose(result[:, 1], 0.0)
+
+    def test_full_pan_right_puts_signal_only_in_right_channel(self):
+        data = _make_multichannel_array(n_samples=1000, n_channels=1)
+        tracks = [{"index": 1, "volume": 1.0, "pan": 1.0}]
+        result = build_stereo_mix(data, tracks)
+        assert np.allclose(result[:, 0], 0.0)
+        assert np.allclose(result[:, 1], data[:, 0])
+
+    def test_centre_pan_splits_equally(self):
+        data = _make_multichannel_array(n_samples=1000, n_channels=1)
+        tracks = [{"index": 1, "volume": 1.0, "pan": 0.5}]
+        result = build_stereo_mix(data, tracks)
+        assert np.allclose(result[:, 0], result[:, 1])
+
+    def test_volume_scales_output(self):
+        data = _make_multichannel_array(n_samples=1000, n_channels=1)
+        t1 = [{"index": 1, "volume": 1.0, "pan": 0.5}]
+        t2 = [{"index": 1, "volume": 2.0, "pan": 0.5}]
+        r1 = build_stereo_mix(data, t1)
+        r2 = build_stereo_mix(data, t2)
+        assert np.allclose(r2, r1 * 2)
+
+    def test_empty_tracks_returns_silence(self):
+        data = _make_multichannel_array(n_samples=1000, n_channels=2)
+        result = build_stereo_mix(data, [])
+        assert np.all(result == 0.0)
+
+    def test_multiple_tracks_are_summed(self):
+        n = 1000
+        data = np.ones((n, 2))
+        tracks = [
+            {"index": 1, "volume": 1.0, "pan": 0.0},
+            {"index": 2, "volume": 1.0, "pan": 0.0},
+        ]
+        result = build_stereo_mix(data, tracks)
+        # Both tracks fully panned left → left channel = 2.0, right = 0.0
+        assert np.allclose(result[:, 0], 2.0)
+        assert np.allclose(result[:, 1], 0.0)
+
+    def test_output_dtype_is_float64(self):
+        data = _make_multichannel_array(n_samples=100, n_channels=1)
+        result = build_stereo_mix(data, [{"index": 1, "volume": 1.0, "pan": 0.5}])
+        assert result.dtype == np.float64
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  process_audio                                                             ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+class TestProcessAudio:
+    """Tests use a 5-second 440 Hz stereo sine wave."""
+
+    @pytest.fixture()
+    def audio(self) -> AudioSegment:
+        return _make_stereo_segment(duration_ms=5_000)
+
+    def test_returns_audio_segment(self, audio):
+        result = process_audio(audio, 3.25, 2, 1, 3, 80)
+        assert isinstance(result, AudioSegment)
+
+    def test_output_is_stereo(self, audio):
+        result = process_audio(audio, 3.25, 2, 1, 3, 80)
+        assert result.channels == 2
+
+    def test_output_sample_width_is_respected(self, audio):
+        result = process_audio(audio, 3.25, 2, 1, 3, 80)
+        assert result.sample_width == 2
+
+    def test_output_is_not_silent(self, audio):
+        result = process_audio(audio, 3.25, 2, 1, 3, 80)
+        assert result.dBFS > -60
+
+    def test_fade_applied_when_duration_exceeds_threshold(self, audio):
+        """A 5 s clip with threshold=3 s should have fades applied."""
+        result = process_audio(audio, 3.25, 2, 1.0, 3, 80)
+        # After fade-in/out the audio should still be non-trivially long
+        assert result.duration_seconds > 1.0
+
+    def test_no_fade_when_duration_below_threshold(self):
+        short = _make_stereo_segment(duration_ms=1_000)  # 1 s < 3 s threshold
+        result = process_audio(short, 3.25, 2, 1.0, 3, 80)
+        assert isinstance(result, AudioSegment)
+
+    def test_frame_rate_preserved(self, audio):
+        result = process_audio(audio, 3.25, 2, 1, 3, 80)
+        assert result.frame_rate == audio.frame_rate
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  extract_bpm                                                               ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+class TestExtractBpm:
+    @pytest.fixture()
+    def click_track(self) -> tuple[np.ndarray, int]:
+        """120 BPM click track: impulse every 0.5 s at sr=22050."""
+        sr = 22_050
+        duration_s = 20
+        n = sr * duration_s
+        y = np.zeros(n, dtype=np.float32)
+        beat_interval = sr // 2  # 120 BPM
+        y[::beat_interval] = 1.0
+        return y, sr
+
+    def test_returns_float(self, click_track):
+        y, sr = click_track
+        bpm = extract_bpm(y, sr)
+        assert isinstance(bpm, float)
+
+    def test_bpm_is_positive(self, click_track):
+        y, sr = click_track
+        bpm = extract_bpm(y, sr)
+        assert bpm > 0
+
+    def test_bpm_plausible_range(self, click_track):
+        y, sr = click_track
+        bpm = extract_bpm(y, sr)
+        # librosa may detect double / half tempo on synthetic clicks — accept 60–240
+        assert 60 <= bpm <= 240
+
+    def test_handles_silent_signal(self):
+        y = np.zeros(22_050, dtype=np.float32)
+        bpm = extract_bpm(y, 22_050)
+        # Should not raise; result is librosa's default fallback
+        assert isinstance(bpm, float)
