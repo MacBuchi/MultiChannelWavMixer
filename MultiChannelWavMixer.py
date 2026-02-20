@@ -4,6 +4,8 @@ from tkinter import filedialog, messagebox
 import soundfile as sf
 import numpy as np
 import os
+import sys
+import tempfile
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -31,7 +33,18 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 # ─── Constants ─────────────────────────────────────────────────────────────────
-CONFIG_FILE = "MixConf.json"
+# Resolve paths that must work both from source and inside a .app bundle.
+if getattr(sys, "frozen", False):
+    # Running inside PyInstaller bundle — store user data in Application Support
+    _APP_DATA_DIR = os.path.expanduser(
+        "~/Library/Application Support/MultiChannelWavMixer"
+    )
+    os.makedirs(_APP_DATA_DIR, exist_ok=True)
+else:
+    # Running from source — keep files next to the script
+    _APP_DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+
+CONFIG_FILE = os.path.join(_APP_DATA_DIR, "MixConf.json")
 
 def load_mix_config():
     """Load MixConf.json and return a dict of channel data wrapped in tkinter variables."""
@@ -380,7 +393,7 @@ def mix_to_stereo():
 
         if output_folder.get():
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            temp_wav_path = "temp_stereo.wav"
+            temp_wav_path = os.path.join(tempfile.gettempdir(), "multichannelmixer_temp.wav")
             sf.write(temp_wav_path, stereo, samplerate)
             audio = AudioSegment.from_wav(temp_wav_path)
             audio = process_audio(audio, PHASE_DBFS_THRESH=3.25, SAMPLE_WIDTH=2,
