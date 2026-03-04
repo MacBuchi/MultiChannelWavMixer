@@ -8,9 +8,6 @@ Run with: uv run pytest
 from __future__ import annotations
 
 import json
-import os
-import struct
-import tempfile
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -18,6 +15,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 from pydub import AudioSegment
+
+import mixer_utils as _mixer_utils  # for _playback_event access
 
 # ── module under test ─────────────────────────────────────────────────────────
 from mixer_utils import (
@@ -34,11 +33,11 @@ from mixer_utils import (
     save_raw_config,
     stop_playback,
 )
-import mixer_utils as _mixer_utils  # for _playback_event access
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  Helpers                                                                   ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
+
 
 def _make_stereo_segment(
     duration_ms: int = 5_000,
@@ -72,6 +71,7 @@ def _make_multichannel_array(n_samples: int = 44_100, n_channels: int = 4) -> np
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  clean_xml                                                                  ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
+
 
 class TestCleanXml:
     def test_strips_prefix_before_xml_declaration(self):
@@ -204,7 +204,7 @@ class TestParseTracksFromIxml:
 SAMPLE_CONFIG: dict = {
     "Guitar L": {"index": 1, "volume": 1.0, "pan": 0.0, "use_for_mixdown": True},
     "Guitar R": {"index": 2, "volume": 1.0, "pan": 1.0, "use_for_mixdown": True},
-    "Kick":     {"index": 3, "volume": 0.8, "pan": 0.5, "use_for_mixdown": False},
+    "Kick": {"index": 3, "volume": 0.8, "pan": 0.5, "use_for_mixdown": False},
 }
 
 
@@ -220,7 +220,6 @@ class TestRawConfig:
         assert load_raw_config(path) == {}
 
     def test_load_returns_empty_dict_on_invalid_json(self, tmp_path):
-        path = str(tmp_path / "broken.json")
         path_obj = tmp_path / "broken.json"
         path_obj.write_text("{ this is not json }", encoding="utf-8")
         assert load_raw_config(str(path_obj)) == {}
@@ -251,6 +250,7 @@ class TestRawConfig:
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  build_stereo_mix                                                          ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
+
 
 class TestBuildStereoMix:
     def test_output_shape_is_samples_by_two(self):
@@ -314,6 +314,7 @@ class TestBuildStereoMix:
 # ║  process_audio                                                             ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
+
 class TestProcessAudio:
     """Tests use a 5-second 440 Hz stereo sine wave."""
 
@@ -357,6 +358,7 @@ class TestProcessAudio:
 # ║  extract_bpm                                                               ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
+
 class TestExtractBpm:
     @pytest.fixture()
     def click_track(self) -> tuple[np.ndarray, int]:
@@ -395,6 +397,7 @@ class TestExtractBpm:
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  build_track_preview                                                        ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
+
 
 class TestBuildTrackPreview:
     def test_output_shape_is_stereo(self):
@@ -437,14 +440,12 @@ class TestBuildTrackPreview:
 # ║  build_mix_preview                                                          ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
+
 class TestBuildMixPreview:
     SR = 44_100
 
     def _tracks(self, n_ch: int) -> list:
-        return [
-            {"index": i + 1, "volume": 1.0, "pan": 0.5}
-            for i in range(n_ch)
-        ]
+        return [{"index": i + 1, "volume": 1.0, "pan": 0.5} for i in range(n_ch)]
 
     def test_output_shape_is_stereo(self):
         data = _make_multichannel_array(n_samples=self.SR, n_channels=2)
@@ -486,6 +487,7 @@ class TestBuildMixPreview:
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  play_audio / stop_playback  (sounddevice mocked)                          ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
+
 
 class TestPlayback:
     """sounddevice is mocked so tests run without an audio device.
@@ -578,8 +580,7 @@ class TestPlayback:
         with patch("mixer_utils.sd") as mock_sd:
             mock_sd.OutputStream.return_value = MagicMock()
             finished = MagicMock()
-            play_audio(np.zeros((100, 2), dtype=np.float32), 44_100,
-                       on_finished=finished)
+            play_audio(np.zeros((100, 2), dtype=np.float32), 44_100, on_finished=finished)
             time.sleep(0.05)
             _, kwargs = mock_sd.OutputStream.call_args
             kwargs["finished_callback"]()
@@ -603,9 +604,11 @@ class TestPlayback:
             _, kwargs = mock_sd.OutputStream.call_args
             kwargs["finished_callback"]()  # must not raise
 
+
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  db_to_linear                                                               ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
+
 
 class TestDbToLinear:
     def test_unity_gain(self):

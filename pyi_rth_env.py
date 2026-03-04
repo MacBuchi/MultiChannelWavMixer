@@ -3,13 +3,13 @@ PyInstaller runtime hook — executed before any user code.
 Adds common macOS binary paths (Homebrew, MacPorts, /usr/local) to PATH
 so that pydub can locate ffmpeg/ffprobe inside the .app bundle.
 """
+
 import os
-import sys
 
 _extra_paths = [
-    "/opt/homebrew/bin",        # Apple Silicon Homebrew
-    "/usr/local/bin",           # Intel Homebrew / manual installs
-    "/opt/local/bin",           # MacPorts
+    "/opt/homebrew/bin",  # Apple Silicon Homebrew
+    "/usr/local/bin",  # Intel Homebrew / manual installs
+    "/opt/local/bin",  # MacPorts
     "/usr/bin",
     "/bin",
 ]

@@ -13,7 +13,8 @@ import re
 import threading
 import time
 import xml.etree.ElementTree as ET
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import librosa
 import numpy as np
@@ -21,6 +22,7 @@ import sounddevice as sd
 from pydub import AudioSegment, effects, silence
 
 # ── XML / iXML helpers ──────────────────────────────────────────────────────────
+
 
 def clean_xml(data: str) -> str:
     """Strip everything before ``<?xml`` and remove non-printable characters."""
@@ -65,23 +67,26 @@ def parse_tracks_from_ixml(ixml_str: str) -> list[dict[str, Any]]:
             pan = 1.0
         else:
             pan = 0.5
-        result.append({
-            "index": int(index_str),
-            "name": name,
-            "volume": 1.0,
-            "pan": pan,
-            "use_for_mixdown": True,
-        })
+        result.append(
+            {
+                "index": int(index_str),
+                "name": name,
+                "volume": 1.0,
+                "pan": pan,
+                "use_for_mixdown": True,
+            }
+        )
     return result
 
 
 # ── Config I/O (plain dicts – no tkinter) ───────────────────────────────────────
 
+
 def load_raw_config(path: str = "MixConf.json") -> dict[str, dict[str, Any]]:
     """Load *path* and return the channel config as plain Python dicts."""
     if not os.path.exists(path):
         return {}
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         try:
             return json.load(f)
         except json.JSONDecodeError:
@@ -95,6 +100,7 @@ def save_raw_config(config: dict[str, dict[str, Any]], path: str = "MixConf.json
 
 
 # ── Stereo mixing ────────────────────────────────────────────────────────────────
+
 
 def build_stereo_mix(
     data: np.ndarray,
@@ -120,6 +126,7 @@ def build_stereo_mix(
 
 # ── Audio post-processing ────────────────────────────────────────────────────────
 
+
 def process_audio(
     wav_in: AudioSegment,
     PHASE_DBFS_THRESH: float,
@@ -142,9 +149,7 @@ def process_audio(
 
     if has_phase_issues:
         split = wav_in.split_to_mono()
-        stereo_sound = AudioSegment.from_mono_audiosegments(
-            split[0], split[1].invert_phase()
-        )
+        stereo_sound = AudioSegment.from_mono_audiosegments(split[0], split[1].invert_phase())
     else:
         stereo_sound = wav_in.set_channels(2)
 
@@ -161,6 +166,7 @@ def process_audio(
 
 
 # ── BPM detection ────────────────────────────────────────────────────────────────
+
 
 def extract_bpm(y: np.ndarray, sr: int) -> float:
     """Return the estimated tempo in BPM using librosa's beat tracker."""
@@ -181,11 +187,11 @@ def extract_bpm(y: np.ndarray, sr: int) -> float:
 #  4. A generation counter ensures only the *latest* click's background thread
 #     opens a stream; superseded threads exit silently.
 
-_playback_event: threading.Event = threading.Event()   # set ↔ stream is alive
-_current_stop: threading.Event | None = None            # signal current stream
-_playback_generation: int = 0                           # incremented on each launch
-_playback_lock: threading.Lock = threading.Lock()       # guards above globals
-_active_stream: object | None = None                    # keeps OutputStream alive
+_playback_event: threading.Event = threading.Event()  # set ↔ stream is alive
+_current_stop: threading.Event | None = None  # signal current stream
+_playback_generation: int = 0  # incremented on each launch
+_playback_lock: threading.Lock = threading.Lock()  # guards above globals
+_active_stream: object | None = None  # keeps OutputStream alive
 
 
 def db_to_linear(db: float, floor_db: float = -60.0) -> float:
@@ -259,7 +265,7 @@ def play_audio(
 
         def _finished() -> None:
             global _active_stream
-            _active_stream = None          # release the stream ref *after* PA is done
+            _active_stream = None  # release the stream ref *after* PA is done
             _playback_event.clear()
             if on_finished:
                 on_finished()
@@ -272,7 +278,7 @@ def play_audio(
             finished_callback=_finished,
             dtype="float32",
         )
-        _active_stream = stream            # prevent GC while callback is alive
+        _active_stream = stream  # prevent GC while callback is alive
         stream.start()
 
     threading.Thread(target=_launch, daemon=True).start()

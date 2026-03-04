@@ -6,9 +6,36 @@ on:
       - Main
 
 jobs:
-  # ── 1. Run test suite ──────────────────────────────────────────────────────
+  # ── 1. Lint ──────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies (incl. dev)
+        run: uv sync --all-groups
+
+      - name: Ruff — lint
+        run: uv run ruff check .
+
+      - name: Ruff — format check
+        run: uv run ruff format --check .
+
+  # ── 2. Run test suite ──────────────────────────────────────────────────────
   test:
     name: Run Tests
+    needs: lint
     runs-on: macos-latest
     permissions:
       checks: write
