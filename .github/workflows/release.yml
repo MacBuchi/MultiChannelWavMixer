@@ -51,10 +51,12 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           VERSION="${{ inputs.version }}"
-          # Update version in pyproject.toml (both [project] and [tool.commitizen])
+          # Update version in pyproject.toml if it differs
           sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" pyproject.toml
-          git add pyproject.toml
-          git commit -m "bump: release v${VERSION}"
+          if ! git diff --quiet pyproject.toml; then
+            git add pyproject.toml
+            git commit -m "bump: release v${VERSION}"
+          fi
           git tag -a "v${VERSION}" -m "Release v${VERSION}"
           echo "bumped=true"           >> "$GITHUB_OUTPUT"
           echo "new_version=${VERSION}" >> "$GITHUB_OUTPUT"
