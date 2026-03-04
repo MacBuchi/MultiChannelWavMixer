@@ -8,6 +8,14 @@ man/
 share/
 ssl/
 
+# audio files
+*.mp3
+*.ogg
+*.wav
+*.flac
+*.aac
+
+
 # ignore MacOS files
 .DS_Store
 .Spotlight-V100
