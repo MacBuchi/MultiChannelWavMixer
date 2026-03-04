@@ -26,6 +26,7 @@ dev = [
     "pyinstaller>=6.19.0",
     "pytest>=8.0",
     "pytest-cov>=5.0",
+    "ruff>=0.9",
 ]
 
 [tool.commitizen]
@@ -34,6 +35,26 @@ version = "1.0.0"
 version_files = ["pyproject.toml:version"]
 tag_format = "v$version"
 update_changelog_on_bump = true
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+]
+ignore = [
+    "E501",  # line too long — handled by formatter
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
