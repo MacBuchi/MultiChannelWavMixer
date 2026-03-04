@@ -151,6 +151,20 @@ jobs:
           uv run pyinstaller MultiChannelWavMixer.spec --noconfirm --log-level WARN
           Compress-Archive -Path dist\MultiChannelWavMixer -DestinationPath dist\${{ matrix.artifact }}
 
+      - name: Smoke test — macOS
+        if: runner.os == 'macOS'
+        run: |
+          timeout 10 dist/MultiChannelWavMixer.app/Contents/MacOS/MultiChannelWavMixer || [ $? -eq 124 ]
+
+      - name: Smoke test — Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $proc = Start-Process -FilePath 'dist\MultiChannelWavMixer\MultiChannelWavMixer.exe' -PassThru
+          Start-Sleep 10
+          if (!$proc.HasExited) { $proc.Kill(); exit 0 }
+          if ($proc.ExitCode -ne 0) { Write-Error "App crashed with exit $($proc.ExitCode)"; exit 1 }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

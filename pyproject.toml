@@ -19,6 +19,11 @@ dependencies = [
 
 [tool.uv]
 package = false
+override-dependencies = [
+    # llvmlite (numba dep) has no pre-built macOS x86_64 wheel for Python 3.13+;
+    # librosa works without numba — it is a JIT accelerator with pure-Python fallbacks.
+    "numba ; platform_machine == 'arm64' or sys_platform != 'darwin'",
+]
 
 [dependency-groups]
 dev = [

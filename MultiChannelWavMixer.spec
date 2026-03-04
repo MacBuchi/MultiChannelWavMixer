@@ -65,8 +65,6 @@ hiddenimports = [
     "tkinter.messagebox",
     # misc
     "xml.etree.ElementTree",
-    "numba",
-    "llvmlite",
 ]
 
 # collect all submodules of scipy and librosa to avoid missing-module errors
@@ -86,6 +84,7 @@ a = Analysis(
     excludes=[
         "PyQt5", "PyQt6", "PySide2", "PySide6",
         "wx", "gi",
+        "numba", "llvmlite",
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
