@@ -51,7 +51,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Build app with PyInstaller
-        run: ./build.sh
+        run: bash build.sh
 
       - name: Zip app bundle
         run: |
