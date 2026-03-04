@@ -22,10 +22,18 @@ package = false
 
 [dependency-groups]
 dev = [
+    "commitizen>=3.0",
     "pyinstaller>=6.19.0",
     "pytest>=8.0",
     "pytest-cov>=5.0",
 ]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.0.0"
+version_files = ["pyproject.toml:version"]
+tag_format = "v$version"
+update_changelog_on_bump = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

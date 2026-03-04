@@ -8,6 +8,14 @@ man/
 share/
 ssl/
 
+# audio files
+*.mp3
+*.ogg
+*.wav
+*.flac
+*.aac
+
+
 # ignore MacOS files
 .DS_Store
 .Spotlight-V100
@@ -49,7 +57,8 @@ MANIFEST
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
-*.spec
+# Note: *.spec is intentionally NOT ignored — MultiChannelWavMixer.spec is
+# the project's build configuration and must be version-controlled.
 
 # Installer logs
 pip-log.txt

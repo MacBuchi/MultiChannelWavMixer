@@ -1,0 +1,171 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - Main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.0.0) — skips commit analysis'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  # ── 1. Bump version, create tag ────────────────────────────────────────────
+  bump:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      bumped:      ${{ steps.cz.outputs.bumped }}
+      new_version: ${{ steps.cz.outputs.new_version }}
+
+    steps:
+      - name: Checkout code (full history for commitizen)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies (incl. dev)
+        run: uv sync --all-groups
+
+      - name: Configure git bot identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ── Manual dispatch: stamp exact version ──────────────────────────────
+      - name: Bump to exact version (manual dispatch)
+        id: cz_manual
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          uv run cz bump --yes --exact-version ${{ inputs.version }}
+          echo "bumped=true"       >> "$GITHUB_OUTPUT"
+          echo "new_version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+
+      # ── Auto: derive version from conventional commits ────────────────────
+      # Exit code 21 = "nothing to release" — treated as success (no-op).
+      - name: Bump version with commitizen (auto)
+        id: cz_auto
+        if: github.event_name == 'push'
+        run: |
+          if uv run cz bump --yes; then
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+            echo "new_version=$(uv run cz version --project)" >> "$GITHUB_OUTPUT"
+          else
+            EXIT=$?
+            if [ $EXIT -eq 21 ]; then
+              echo "bumped=false" >> "$GITHUB_OUTPUT"
+              echo "ℹ️  No releasable commits since last tag — skipping release."
+            else
+              exit $EXIT
+            fi
+          fi
+
+      # ── Merge outputs from both branches into a single step output ────────
+      - name: Resolve bump outputs
+        id: cz
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "bumped=${{ steps.cz_manual.outputs.bumped }}"       >> "$GITHUB_OUTPUT"
+            echo "new_version=${{ steps.cz_manual.outputs.new_version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "bumped=${{ steps.cz_auto.outputs.bumped }}"         >> "$GITHUB_OUTPUT"
+            echo "new_version=${{ steps.cz_auto.outputs.new_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push version bump commit and tag
+        if: steps.cz.outputs.bumped == 'true'
+        run: git push --follow-tags
+
+  # ── 2. Build per platform (only when version was bumped) ──────────────────
+  build:
+    name: Build — ${{ matrix.os-label }}
+    needs: bump
+    if: needs.bump.outputs.bumped == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner:    macos-latest
+            os-label:  macOS
+            artifact:  MultiChannelWavMixer-macOS.zip
+
+          - runner:    windows-latest
+            os-label:  Windows
+            artifact:  MultiChannelWavMixer-Windows.zip
+
+    steps:
+      - name: Checkout code at new tag
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.bump.outputs.new_version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies (incl. dev)
+        run: uv sync --all-groups
+
+      - name: Build with PyInstaller (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          uv run pyinstaller MultiChannelWavMixer.spec --noconfirm --log-level WARN
+          cd dist && zip -r ${{ matrix.artifact }} MultiChannelWavMixer.app
+
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          uv run pyinstaller MultiChannelWavMixer.spec --noconfirm --log-level WARN
+          Compress-Archive -Path dist\MultiChannelWavMixer -DestinationPath dist\${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          retention-days: 7
+
+  # ── 3. Publish GitHub Release with all platform artifacts ─────────────────
+  publish:
+    name: Publish GitHub Release
+    needs: [bump, build]
+    if: needs.bump.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.bump.outputs.new_version }}
+          files: release-artifacts/*.zip
+          generate_release_notes: true
