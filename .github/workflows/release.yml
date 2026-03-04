@@ -10,6 +10,9 @@ jobs:
   test:
     name: Run Tests
     runs-on: macos-latest
+    permissions:
+      checks: write
+      contents: read
 
     steps:
       - name: Checkout code
@@ -27,7 +30,16 @@ jobs:
         run: uv sync --all-groups
 
       - name: Run pytest
-        run: uv run pytest --tb=short -v
+        run: uv run pytest --tb=short -v --junitxml=test-results.xml -W default
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Pytest Results
+          path: test-results.xml
+          reporter: java-junit
+          fail-on-error: false
 
   # ── 2. Build macOS app (only when tests pass) ──────────────────────────────
   build:
