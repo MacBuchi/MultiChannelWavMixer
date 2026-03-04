@@ -109,18 +109,64 @@ All 71 tests are GUI-free and live in `tests/test_mixer_utils.py`.
 
 ---
 
+## Development workflow
+
+All development happens on the `dev` branch. `Main` is the release branch — direct commits are not used.
+
+```
+dev  →  Pull Request  →  Main
+         (CI checks)      (Release triggered)
+```
+
+### Commit message convention
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). The commit prefix determines whether and how the version is bumped on merge:
+
+| Prefix | Example | Version bump |
+|---|---|---|
+| `fix:` | `fix: handle empty iXML gracefully` | Patch (`1.0.0 → 1.0.1`) |
+| `feat:` | `feat: add LUFS meter to toolbar` | Minor (`1.0.0 → 1.1.0`) |
+| `feat!:` or `BREAKING CHANGE` | `feat!: drop Python 3.12 support` | Major (`1.0.0 → 2.0.0`) |
+| `chore:`, `docs:`, `ci:`, `refactor:`, `test:` | — | No bump |
+
+### CI workflow (on every PR to `Main`)
+
+1. **Run Tests** — `uv run pytest` with JUnit XML output; results are posted as a named check on the PR
+2. **Build macOS App** — verifies the PyInstaller build completes without error
+
+### Release workflow (on merge to `Main`)
+
+Triggered automatically. Three sequential jobs:
+
+1. **Bump Version** — [commitizen](https://commitizen-tools.github.io/commitizen/) reads commits since the last tag, bumps the version in `pyproject.toml`, appends to `CHANGELOG.md`, and pushes a git tag (e.g. `v1.1.0`). If no releasable commits are found the workflow exits cleanly with no release.
+2. **Build** (parallel matrix) — builds the app on `macos-latest` and `windows-latest`:
+   - macOS → `MultiChannelWavMixer-macOS.zip` (contains `MultiChannelWavMixer.app`)
+   - Windows → `MultiChannelWavMixer-Windows.zip` (contains the PyInstaller output folder)
+3. **Publish** — creates a [GitHub Release](https://github.com/MacBuchi/MultiChannelWavMixer/releases) with both zip files attached and auto-generated release notes.
+
+> The version in `pyproject.toml` is the single source of truth and is always in sync with the git tag.
+
+---
+
 ## Project structure
 
 ```
 MultiChannelWavMixer/
-├── MultiChannelWavMixer.py   # GUI application (customtkinter)
-├── mixer_utils.py            # Pure audio logic — no GUI dependency
-├── MixConf.json              # Persisted channel configuration
-├── pyproject.toml            # UV project & dependency declaration
-├── .python-version           # Pins Python 3.13
-├── requirements.txt          # Legacy reference (use uv sync instead)
+├── MultiChannelWavMixer.py      # GUI application (customtkinter)
+├── mixer_utils.py               # Pure audio logic — no GUI dependency
+├── MultiChannelWavMixer.spec    # PyInstaller build spec (cross-platform)
+├── pyi_rth_env.py               # PyInstaller runtime hook (PATH for pydub/ffmpeg)
+├── build.sh                     # Local build helper (wraps pyinstaller spec)
+├── MixConf.json                 # Persisted channel configuration
+├── pyproject.toml               # UV project, dependencies & commitizen config
+├── .python-version              # Pins Python 3.13
+├── requirements.txt             # Legacy reference (use uv sync instead)
+├── .github/
+│   └── workflows/
+│       ├── ci.yml               # PR checks: tests + build verification
+│       └── release.yml          # Merge to Main: version bump + release build
 ├── tests/
-│   └── test_mixer_utils.py   # Unit tests for mixer_utils
+│   └── test_mixer_utils.py      # Unit tests for mixer_utils
 └── doc/
     └── Preview.png
 ```
@@ -184,6 +230,7 @@ graph TD
 
 | Date | Change |
 |---|---|
+| 2026-03-04 | CI/CD: add `ci.yml` (PR checks) and `release.yml` (multi-platform release); conventional commits drive automatic versioning via commitizen |
 | 2026-02-20 | Volume fader changed to dB scale (-60 – +6 dB); -60 dB treated as silence; double-click resets to 0 dB |
 | 2026-02-20 | Waveform y-axis fixed (-1 to +1); amplitude scaled by volume fader for visual comparability |
 | 2026-02-20 | Playback rewritten with `sd.OutputStream` callback + per-stream stop `Event`; `Pa_StopStream` never called → AUHAL error -50 eliminated on macOS |
