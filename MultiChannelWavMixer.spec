@@ -2,8 +2,10 @@
 """
 PyInstaller spec for MultiChannelWavMixer
 Build with:  uv run pyinstaller MultiChannelWavMixer.spec
+Cross-platform: produces .app on macOS, folder + .exe on Windows.
 """
 import os
+import sys
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
@@ -123,16 +125,19 @@ coll = COLLECT(
     name="MultiChannelWavMixer",
 )
 
-app = BUNDLE(
-    coll,
-    name="MultiChannelWavMixer.app",
-    icon=None,              # set to "path/to/icon.icns" when available
-    bundle_identifier="com.macbuchi.multichannelwavmixer",
-    info_plist={
-        "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion": "1.0.0",
-        "NSHighResolutionCapable": True,
-        "NSMicrophoneUsageDescription": "Required for audio playback via sounddevice.",
-        "LSUIElement": False,
-    },
-)
+# macOS-only: wrap COLLECT result into a .app bundle
+if sys.platform == "darwin":
+    app = BUNDLE(
+        coll,
+        name="MultiChannelWavMixer.app",
+        icon=None,              # set to "path/to/icon.icns" when available
+        bundle_identifier="com.macbuchi.multichannelwavmixer",
+        info_plist={
+            "CFBundleShortVersionString": "1.0.0",
+            "CFBundleVersion": "1.0.0",
+            "NSHighResolutionCapable": True,
+            "NSMicrophoneUsageDescription": "Required for audio playback via sounddevice.",
+            "LSUIElement": False,
+        },
+    )
+# On Windows the COLLECT folder (dist/MultiChannelWavMixer/) is the deliverable.

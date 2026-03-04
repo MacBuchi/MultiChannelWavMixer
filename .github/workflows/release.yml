@@ -1,22 +1,93 @@
-name: CI / Release
+name: Release
 
 on:
-  pull_request:
+  push:
     branches:
       - Main
 
 jobs:
-  # ── 1. Run test suite ──────────────────────────────────────────────────────
-  test:
-    name: Run Tests
-    runs-on: macos-latest
+  # ── 1. Bump version, create tag ────────────────────────────────────────────
+  bump:
+    name: Bump Version
+    runs-on: ubuntu-latest
     permissions:
-      checks: write
+      contents: write
+    outputs:
+      bumped:      ${{ steps.cz.outputs.bumped }}
+      new_version: ${{ steps.cz.outputs.new_version }}
+
+    steps:
+      - name: Checkout code (full history for commitizen)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies (incl. dev)
+        run: uv sync --all-groups
+
+      - name: Configure git bot identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # commitizen reads commits since the last tag, bumps version in
+      # pyproject.toml, writes/updates CHANGELOG.md, and creates a git tag.
+      # Exit code 21 = "nothing to release" — treated as success (no-op).
+      - name: Bump version with commitizen
+        id: cz
+        run: |
+          if uv run cz bump --yes; then
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+            echo "new_version=$(uv run cz version --project)" >> "$GITHUB_OUTPUT"
+          else
+            EXIT=$?
+            if [ $EXIT -eq 21 ]; then
+              echo "bumped=false" >> "$GITHUB_OUTPUT"
+              echo "ℹ️  No releasable commits since last tag — skipping release."
+            else
+              exit $EXIT
+            fi
+          fi
+
+      - name: Push version bump commit and tag
+        if: steps.cz.outputs.bumped == 'true'
+        run: git push --follow-tags
+
+  # ── 2. Build per platform (only when version was bumped) ──────────────────
+  build:
+    name: Build — ${{ matrix.os-label }}
+    needs: bump
+    if: needs.bump.outputs.bumped == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
       contents: read
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner:    macos-latest
+            os-label:  macOS
+            artifact:  MultiChannelWavMixer-macOS.zip
+
+          - runner:    windows-latest
+            os-label:  Windows
+            artifact:  MultiChannelWavMixer-Windows.zip
+
     steps:
-      - name: Checkout code
+      - name: Checkout code at new tag
         uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.bump.outputs.new_version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -29,50 +100,45 @@ jobs:
       - name: Install dependencies (incl. dev)
         run: uv sync --all-groups
 
-      - name: Run pytest
-        run: uv run pytest --tb=short -v --junitxml=test-results.xml -W default
-
-      - name: Publish test results
-        uses: dorny/test-reporter@v1
-        if: always()
-        with:
-          name: Pytest Results
-          path: test-results.xml
-          reporter: java-junit
-          fail-on-error: false
-
-  # ── 2. Build macOS app (only when tests pass) ──────────────────────────────
-  build:
-    name: Build macOS App
-    needs: test
-    runs-on: macos-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Set up Python 3.13
-        run: uv python install 3.13
-
-      - name: Install dependencies (incl. dev)
-        run: uv sync --all-groups
-
-      - name: Build app with PyInstaller
-        run: bash build.sh
-
-      - name: Zip app bundle
+      - name: Build with PyInstaller (macOS)
+        if: runner.os == 'macOS'
         run: |
-          cd dist
-          zip -r MultiChannelWavMixer.zip MultiChannelWavMixer.app
+          uv run pyinstaller MultiChannelWavMixer.spec --noconfirm --log-level WARN
+          cd dist && zip -r ${{ matrix.artifact }} MultiChannelWavMixer.app
 
-      - name: Upload build artifact
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          uv run pyinstaller MultiChannelWavMixer.spec --noconfirm --log-level WARN
+          Compress-Archive -Path dist\MultiChannelWavMixer -DestinationPath dist\${{ matrix.artifact }}
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MultiChannelWavMixer-macOS
-          path: dist/MultiChannelWavMixer.zip
-          retention-days: 30
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          retention-days: 7
+
+  # ── 3. Publish GitHub Release with all platform artifacts ─────────────────
+  publish:
+    name: Publish GitHub Release
+    needs: [bump, build]
+    if: needs.bump.outputs.bumped == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.bump.outputs.new_version }}
+          files: release-artifacts/*.zip
+          generate_release_notes: true
