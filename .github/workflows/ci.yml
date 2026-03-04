@@ -6,9 +6,38 @@ on:
       - Main
 
 jobs:
-  # ── 1. Run test suite ──────────────────────────────────────────────────────
+  # ── 1. Lint ──────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies (incl. dev)
+        run: uv sync --all-groups
+
+      - name: Ruff — lint
+        run: uv run ruff check .
+
+      - name: Ruff — format check
+        run: uv run ruff format --check .
+
+  # ── 2. Run test suite ──────────────────────────────────────────────────────
   test:
     name: Run Tests
+    needs: lint
     runs-on: macos-latest
     permissions:
       checks: write
@@ -41,11 +70,28 @@ jobs:
           reporter: java-junit
           fail-on-error: false
 
-  # ── 2. Build macOS app (only when tests pass) ──────────────────────────────
+  # ── 2. Build per platform (only when tests pass) ──────────────────────────
   build:
-    name: Build macOS App
+    name: Build — ${{ matrix.os-label }}
     needs: test
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner:   macos-14
+            os-label: macOS ARM (Apple Silicon)
+            artifact: MultiChannelWavMixer-macOS-arm64.zip
+
+          - runner:   macos-15-intel
+            os-label: macOS x64 (Intel)
+            artifact: MultiChannelWavMixer-macOS-x64.zip
+
+          - runner:   windows-latest
+            os-label: Windows x64
+            artifact: MultiChannelWavMixer-Windows-x64.zip
 
     steps:
       - name: Checkout code
@@ -62,17 +108,22 @@ jobs:
       - name: Install dependencies (incl. dev)
         run: uv sync --all-groups
 
-      - name: Build app with PyInstaller
-        run: bash build.sh
-
-      - name: Zip app bundle
+      - name: Build with PyInstaller (macOS)
+        if: runner.os == 'macOS'
         run: |
-          cd dist
-          zip -r MultiChannelWavMixer.zip MultiChannelWavMixer.app
+          uv run pyinstaller MultiChannelWavMixer.spec --noconfirm --log-level WARN
+          cd dist && zip -r ${{ matrix.artifact }} MultiChannelWavMixer.app
+
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          uv run pyinstaller MultiChannelWavMixer.spec --noconfirm --log-level WARN
+          Compress-Archive -Path dist\MultiChannelWavMixer -DestinationPath dist\${{ matrix.artifact }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MultiChannelWavMixer-macOS
-          path: dist/MultiChannelWavMixer.zip
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
           retention-days: 30

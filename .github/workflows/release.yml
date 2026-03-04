@@ -50,9 +50,16 @@ jobs:
         id: cz_manual
         if: github.event_name == 'workflow_dispatch'
         run: |
-          uv run cz bump --yes --exact-version ${{ inputs.version }}
-          echo "bumped=true"       >> "$GITHUB_OUTPUT"
-          echo "new_version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          VERSION="${{ inputs.version }}"
+          # Update version in pyproject.toml if it differs
+          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" pyproject.toml
+          if ! git diff --quiet pyproject.toml; then
+            git add pyproject.toml
+            git commit -m "bump: release v${VERSION}"
+          fi
+          git tag -a "v${VERSION}" -m "Release v${VERSION}"
+          echo "bumped=true"           >> "$GITHUB_OUTPUT"
+          echo "new_version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       # ── Auto: derive version from conventional commits ────────────────────
       # Exit code 21 = "nothing to release" — treated as success (no-op).
@@ -102,13 +109,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner:    macos-latest
-            os-label:  macOS
-            artifact:  MultiChannelWavMixer-macOS.zip
+          - runner:   macos-14
+            os-label: macOS ARM (Apple Silicon)
+            artifact: MultiChannelWavMixer-macOS-arm64.zip
 
-          - runner:    windows-latest
-            os-label:  Windows
-            artifact:  MultiChannelWavMixer-Windows.zip
+          - runner:   macos-15-intel
+            os-label: macOS x64 (Intel)
+            artifact: MultiChannelWavMixer-macOS-x64.zip
+
+          - runner:   windows-latest
+            os-label: Windows x64
+            artifact: MultiChannelWavMixer-Windows-x64.zip
 
     steps:
       - name: Checkout code at new tag
