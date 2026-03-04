@@ -10,6 +10,8 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -73,6 +75,8 @@ jobs:
     name: Build — ${{ matrix.os-label }}
     needs: test
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -81,7 +85,7 @@ jobs:
             os-label: macOS ARM (Apple Silicon)
             artifact: MultiChannelWavMixer-macOS-arm64.zip
 
-          - runner:   macos-13
+          - runner:   macos-15-intel
             os-label: macOS x64 (Intel)
             artifact: MultiChannelWavMixer-macOS-x64.zip
 

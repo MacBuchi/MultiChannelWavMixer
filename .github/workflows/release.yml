@@ -113,7 +113,7 @@ jobs:
             os-label: macOS ARM (Apple Silicon)
             artifact: MultiChannelWavMixer-macOS-arm64.zip
 
-          - runner:   macos-13
+          - runner:   macos-15-intel
             os-label: macOS x64 (Intel)
             artifact: MultiChannelWavMixer-macOS-x64.zip
 
