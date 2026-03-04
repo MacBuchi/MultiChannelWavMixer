@@ -109,13 +109,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner:    macos-latest
-            os-label:  macOS
-            artifact:  MultiChannelWavMixer-macOS.zip
+          - runner:   macos-14
+            os-label: macOS ARM (Apple Silicon)
+            artifact: MultiChannelWavMixer-macOS-arm64.zip
 
-          - runner:    windows-latest
-            os-label:  Windows
-            artifact:  MultiChannelWavMixer-Windows.zip
+          - runner:   macos-13
+            os-label: macOS x64 (Intel)
+            artifact: MultiChannelWavMixer-macOS-x64.zip
+
+          - runner:   windows-latest
+            os-label: Windows x64
+            artifact: MultiChannelWavMixer-Windows-x64.zip
 
     steps:
       - name: Checkout code at new tag
