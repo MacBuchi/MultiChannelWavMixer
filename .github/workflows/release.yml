@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - Main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.0.0) — skips commit analysis'
+        required: true
+        default: '1.0.0'
 
 jobs:
   # ── 1. Bump version, create tag ────────────────────────────────────────────
@@ -39,11 +45,20 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # commitizen reads commits since the last tag, bumps version in
-      # pyproject.toml, writes/updates CHANGELOG.md, and creates a git tag.
+      # ── Manual dispatch: stamp exact version ──────────────────────────────
+      - name: Bump to exact version (manual dispatch)
+        id: cz_manual
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          uv run cz bump --yes --exact-version ${{ inputs.version }}
+          echo "bumped=true"       >> "$GITHUB_OUTPUT"
+          echo "new_version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+
+      # ── Auto: derive version from conventional commits ────────────────────
       # Exit code 21 = "nothing to release" — treated as success (no-op).
-      - name: Bump version with commitizen
-        id: cz
+      - name: Bump version with commitizen (auto)
+        id: cz_auto
+        if: github.event_name == 'push'
         run: |
           if uv run cz bump --yes; then
             echo "bumped=true" >> "$GITHUB_OUTPUT"
@@ -56,6 +71,18 @@ jobs:
             else
               exit $EXIT
             fi
+          fi
+
+      # ── Merge outputs from both branches into a single step output ────────
+      - name: Resolve bump outputs
+        id: cz
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "bumped=${{ steps.cz_manual.outputs.bumped }}"       >> "$GITHUB_OUTPUT"
+            echo "new_version=${{ steps.cz_manual.outputs.new_version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "bumped=${{ steps.cz_auto.outputs.bumped }}"         >> "$GITHUB_OUTPUT"
+            echo "new_version=${{ steps.cz_auto.outputs.new_version }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Push version bump commit and tag
