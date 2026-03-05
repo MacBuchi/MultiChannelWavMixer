@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PAT }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -35,17 +35,41 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Exit code 21 = "nothing to release" — treated as success (no-op).
-      - name: Bump version with commitizen
+      # Decision tree:
+      #   1. New releasable commits exist → bump + push tag (normal flow)
+      #   2. No new commits + no GitHub Release for latest tag → re-push tag (retrigger failed release)
+      #   3. No new commits + release already published → nothing to do
+      - name: Bump version or retrigger release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
-          if uv run cz bump --yes; then
-            echo "Bumped — pushing tag"
+          # Ask commitizen if there is anything to bump (dry-run, no side effects).
+          if uv run cz bump --dry-run --yes > /dev/null 2>&1; then
+            echo "Releasable commits found — bumping."
+            uv run cz bump --yes
             git push --follow-tags
+            exit 0
+          fi
+
+          EXIT=$?
+          if [ $EXIT -ne 21 ]; then
+            exit $EXIT  # unexpected error
+          fi
+
+          # No new releasable commits. Check whether the latest tag has a published release.
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          if [ "$LATEST_TAG" = "none" ]; then
+            echo "ℹ️  No tags and no releasable commits — nothing to do."
+            exit 0
+          fi
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$LATEST_TAG")
+
+          if [ "$HTTP_STATUS" = "404" ]; then
+            echo "⚠️  $LATEST_TAG has no GitHub Release — re-pushing tag to retrigger release."
+            git push origin "$LATEST_TAG"
           else
-            EXIT=$?
-            if [ $EXIT -eq 21 ]; then
-              echo "ℹ️  No releasable commits since last tag — skipping."
-            else
-              exit $EXIT
-            fi
+            echo "ℹ️  $LATEST_TAG is already released — nothing to do."
           fi
