@@ -131,20 +131,18 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/). 
 
 ### CI workflow (on every PR to `Main`)
 
-1. **Run Tests** — `uv run pytest` with JUnit XML output; results are posted as a named check on the PR
-2. **Build macOS App** — verifies the PyInstaller build completes without error
+1. **Lint** — `ruff check` and `ruff format --check` (ubuntu-latest)
+2. **Run Tests** — `uv run pytest` with JUnit XML output; results are posted as a named check on the PR
+3. **Build** (parallel matrix — macOS ARM, macOS Intel, Windows) — verifies the PyInstaller build completes and the app survives a 10-second smoke test
 
 ### Release workflow (on merge to `Main`)
 
-Triggered automatically. Three sequential jobs:
+Two separate workflows fire in sequence:
 
-1. **Bump Version** — [commitizen](https://commitizen-tools.github.io/commitizen/) reads commits since the last tag, bumps the version in `pyproject.toml`, appends to `CHANGELOG.md`, and pushes a git tag (e.g. `v1.1.0`). If no releasable commits are found the workflow exits cleanly with no release.
-2. **Build** (parallel matrix) — builds the app on `macos-latest` and `windows-latest`:
-   - macOS → `MultiChannelWavMixer-macOS.zip` (contains `MultiChannelWavMixer.app`)
-   - Windows → `MultiChannelWavMixer-Windows.zip` (contains the PyInstaller output folder)
-3. **Publish** — creates a [GitHub Release](https://github.com/MacBuchi/MultiChannelWavMixer/releases) with both zip files attached and auto-generated release notes.
+1. **`bump.yml`** — [commitizen](https://commitizen-tools.github.io/commitizen/) reads commits since the last tag, bumps the version in `pyproject.toml`, and pushes an annotated git tag (e.g. `v1.1.0`). If no releasable commits are found the workflow exits cleanly with no release.
+2. **`release.yml`** — triggered by the new tag; builds the app on all three platforms (macOS ARM, macOS Intel, Windows), runs a smoke test on each, and publishes a [GitHub Release](https://github.com/MacBuchi/MultiChannelWavMixer/releases) with the zip artifacts attached.
 
-> The version in `pyproject.toml` is the single source of truth and is always in sync with the git tag.
+> A failed build job can be re-run directly from the Actions tab without re-bumping the version, because the build and the bump are decoupled.
 
 ---
 
@@ -159,12 +157,15 @@ MultiChannelWavMixer/
 ├── build.sh                     # Local build helper (wraps pyinstaller spec)
 ├── MixConf.json                 # Persisted channel configuration
 ├── pyproject.toml               # UV project, dependencies & commitizen config
+├── uv.lock                      # Locked dependency graph
+├── AGENTS.md                    # AI coding agent instructions
 ├── .python-version              # Pins Python 3.13
 ├── requirements.txt             # Legacy reference (use uv sync instead)
 ├── .github/
 │   └── workflows/
-│       ├── ci.yml               # PR checks: tests + build verification
-│       └── release.yml          # Merge to Main: version bump + release build
+│       ├── ci.yml               # PR checks: lint → tests → build + smoke test
+│       ├── bump.yml             # Merge to Main: commitizen version bump + tag push
+│       └── release.yml          # Tag push: build matrix + smoke test + GitHub Release
 ├── tests/
 │   └── test_mixer_utils.py      # Unit tests for mixer_utils
 └── doc/
@@ -230,6 +231,7 @@ graph TD
 
 | Date | Change |
 |---|---|
+| 2026-03-05 | CI/CD: split release into `bump.yml` (tag) + `release.yml` (tag-triggered build); add macOS Intel runner (`macos-15-intel`); add lint step; add smoke test on all platforms; fix `llvmlite` x86_64 build failure via uv override |
 | 2026-03-04 | CI/CD: add `ci.yml` (PR checks) and `release.yml` (multi-platform release); conventional commits drive automatic versioning via commitizen |
 | 2026-02-20 | Volume fader changed to dB scale (-60 – +6 dB); -60 dB treated as silence; double-click resets to 0 dB |
 | 2026-02-20 | Waveform y-axis fixed (-1 to +1); amplitude scaled by volume fader for visual comparability |
