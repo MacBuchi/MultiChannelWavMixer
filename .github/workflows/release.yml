@@ -154,7 +154,17 @@ jobs:
       - name: Smoke test — macOS
         if: runner.os == 'macOS'
         run: |
-          timeout 10 dist/MultiChannelWavMixer.app/Contents/MacOS/MultiChannelWavMixer || [ $? -eq 124 ]
+          dist/MultiChannelWavMixer.app/Contents/MacOS/MultiChannelWavMixer &
+          APP_PID=$!
+          sleep 10
+          if kill -0 "$APP_PID" 2>/dev/null; then
+            kill "$APP_PID"
+            echo "Smoke test passed: app still running after 10s"
+          else
+            wait "$APP_PID"
+            EXIT=$?
+            [ $EXIT -eq 0 ] || (echo "App crashed with exit $EXIT"; exit 1)
+          fi
 
       - name: Smoke test — Windows
         if: runner.os == 'Windows'
