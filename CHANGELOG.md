@@ -1,3 +1,13 @@
+## v1.0.3 (2026-03-05)
+
+### Fix
+
+- add ad-hoc codesign to macOS builds to prevent Gatekeeper 'damaged' error
+
+### Refactor
+
+- split release workflow into bump.yml + release.yml
+
 ## v1.0.2 (2026-03-05)
 
 ### Fix

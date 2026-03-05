@@ -1,6 +1,6 @@
 [project]
 name = "multichannel-wav-mixer"
-version = "1.0.2"
+version = "1.0.3"
 description = "Multichannel WAV file mixer with stereo mixdown"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -36,7 +36,7 @@ dev = [
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.0.2"
+version = "1.0.3"
 version_files = ["pyproject.toml:version"]
 tag_format = "v$version"
 update_changelog_on_bump = true
