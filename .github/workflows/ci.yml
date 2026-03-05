@@ -110,8 +110,12 @@ jobs:
 
       - name: Build with PyInstaller (macOS)
         if: runner.os == 'macOS'
+        run: uv run pyinstaller MultiChannelWavMixer.spec --noconfirm --log-level WARN
+
+      - name: Ad-hoc code sign + zip (macOS)
+        if: runner.os == 'macOS'
         run: |
-          uv run pyinstaller MultiChannelWavMixer.spec --noconfirm --log-level WARN
+          codesign --deep --force --sign - dist/MultiChannelWavMixer.app
           cd dist && zip -r ${{ matrix.artifact }} MultiChannelWavMixer.app
 
       - name: Build with PyInstaller (Windows)

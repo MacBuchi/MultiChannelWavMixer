@@ -1,0 +1,51 @@
+name: Bump Version
+
+on:
+  push:
+    branches:
+      - Main
+
+jobs:
+  bump:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code (full history for commitizen)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies (incl. dev)
+        run: uv sync --all-groups
+
+      - name: Configure git bot identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Exit code 21 = "nothing to release" — treated as success (no-op).
+      - name: Bump version with commitizen
+        run: |
+          if uv run cz bump --yes; then
+            echo "Bumped — pushing tag"
+            git push --follow-tags
+          else
+            EXIT=$?
+            if [ $EXIT -eq 21 ]; then
+              echo "ℹ️  No releasable commits since last tag — skipping."
+            else
+              exit $EXIT
+            fi
+          fi
