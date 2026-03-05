@@ -5,19 +5,27 @@ on:
     branches:
       - Main
 
+# Serialise runs so that rapid pushes to Main don't race each other.
+# A queued run sees the commits that the previous run already bumped,
+# so it will correctly find "nothing to do" and exit cleanly.
+concurrency:
+  group: bump
+  cancel-in-progress: false
+
 jobs:
   bump:
     name: Bump Version
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write   # push version-bump commit + tag
+      actions: write    # dispatch release.yml via workflow_dispatch
 
     steps:
       - name: Checkout code (full history for commitizen)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT }}
+          # Uses github.token by default — no PAT required
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -36,24 +44,28 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       # Decision tree:
-      #   1. New releasable commits exist → bump + push tag (normal flow)
-      #   2. No new commits + no GitHub Release for latest tag → re-push tag (retrigger failed release)
+      #   1. New releasable commits exist → bump + push tag → dispatch release
+      #   2. No new commits + no GitHub Release for latest tag → dispatch release (retrigger)
       #   3. No new commits + release already published → nothing to do
       - name: Bump version or retrigger release
+        id: bump
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # Ask commitizen if there is anything to bump (dry-run, no side effects).
           if uv run cz bump --dry-run --yes > /dev/null 2>&1; then
             echo "Releasable commits found — bumping."
             uv run cz bump --yes
             git push --follow-tags
+            NEW_TAG=$(git describe --tags --abbrev=0)
+            echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          EXIT=$?
-          if [ $EXIT -ne 21 ]; then
-            exit $EXIT  # unexpected error
+          CZ_EXIT=$?
+          if [ "$CZ_EXIT" -ne 21 ]; then
+            echo "Commitizen exited with unexpected code $CZ_EXIT — check the cz bump logs above for details." >&2
+            exit "$CZ_EXIT"
           fi
 
           # No new releasable commits. Check whether the latest tag has a published release.
@@ -68,8 +80,21 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/releases/tags/$LATEST_TAG")
 
           if [ "$HTTP_STATUS" = "404" ]; then
-            echo "⚠️  $LATEST_TAG has no GitHub Release — re-pushing tag to retrigger release."
-            git push origin "$LATEST_TAG"
+            echo "⚠️  $LATEST_TAG has no GitHub Release — retriggering release workflow."
+            echo "tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
           else
             echo "ℹ️  $LATEST_TAG is already released — nothing to do."
           fi
+
+      # Dispatch release.yml via workflow_dispatch so that GITHUB_TOKEN is sufficient
+      # (tag-push events created by GITHUB_TOKEN do not trigger downstream workflows,
+      # but workflow_dispatch API calls always do).
+      - name: Trigger Release workflow
+        if: steps.bump.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run release.yml \
+            --repo "${{ github.repository }}" \
+            --ref Main \
+            --field "tag=${{ steps.bump.outputs.tag }}"
