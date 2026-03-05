@@ -46,6 +46,30 @@ That's it — `uv sync` reads `pyproject.toml`, creates `.venv`, and installs ev
 
 ---
 
+## Pre-built releases
+
+Download the latest zip for your platform from the [GitHub Releases](https://github.com/MacBuchi/MultiChannelWavMixer/releases) page, extract it, and run the app directly — no Python installation required.
+
+| Platform | Artifact |
+|---|---|
+| macOS Apple Silicon | `MultiChannelWavMixer-macOS-arm64.zip` → `MultiChannelWavMixer.app` |
+| macOS Intel | `MultiChannelWavMixer-macOS-x64.zip` → `MultiChannelWavMixer.app` |
+| Windows x64 | `MultiChannelWavMixer-Windows-x64.zip` → `MultiChannelWavMixer\MultiChannelWavMixer.exe` |
+
+### macOS Gatekeeper note
+
+The app is ad-hoc signed but **not notarized** (notarization requires an Apple Developer account). macOS may show *"unidentified developer"* and block the first launch. To open it:
+
+- **Right-click** the `.app` → **Open** → confirm in the dialog, **or**
+- Run once in Terminal to strip the quarantine flag:
+  ```sh
+  xattr -cr /path/to/MultiChannelWavMixer.app
+  ```
+
+After this one-time step the app opens normally.
+
+---
+
 ## Usage
 
 ```sh
