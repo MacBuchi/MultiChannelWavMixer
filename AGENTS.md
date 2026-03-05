@@ -112,16 +112,19 @@ Commitizen reads these prefixes automatically on every merge to `Main` to decide
 
 ### `bump.yml` — runs on push to `Main`
 
-- Commitizen inspects commits since the last tag
-- If releasable commits exist: bumps `pyproject.toml`, commits the change, pushes a `vX.Y.Z` annotated tag
-- If nothing to release: exits cleanly (no-op)
+- Serialised with a `concurrency` group (`cancel-in-progress: false`) to prevent races when multiple PRs merge in quick succession.
+- Commitizen inspects commits since the last tag.
+- If releasable commits exist: bumps `pyproject.toml`, commits the change, pushes a `vX.Y.Z` annotated tag, then dispatches `release.yml` via `workflow_dispatch`.
+- If the latest tag has no published GitHub Release (e.g. a previous release run failed): re-dispatches `release.yml` without bumping.
+- If nothing to do: exits cleanly (no-op).
+- Uses `GITHUB_TOKEN` only — **no PAT required**. The `actions: write` permission allows dispatching `release.yml`.
 
-### `release.yml` — runs on tag push (`v*`)
+### `release.yml` — triggered by `workflow_dispatch` (from `bump.yml` or manually)
 
 1. **Build** (same matrix as CI) — build + smoke test per platform
 2. **Publish** — creates a GitHub Release with the zip artifacts and auto-generated release notes
 
-`workflow_dispatch` accepts a tag name to rebuild/re-release without re-bumping.
+`workflow_dispatch` requires a `tag` input (e.g. `v1.2.3`) and checks out at that tag. This is also the mechanism used by `bump.yml` to trigger a release after a version bump.
 
 ---
 
