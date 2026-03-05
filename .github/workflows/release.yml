@@ -2,105 +2,18 @@ name: Release
 
 on:
   push:
-    branches:
-      - Main
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to release (e.g. 1.0.0) — skips commit analysis'
+      tag:
+        description: 'Tag to release (e.g. v1.2.3) — rebuilds/re-releases an existing tag'
         required: true
-        default: '1.0.0'
 
 jobs:
-  # ── 1. Bump version, create tag ────────────────────────────────────────────
-  bump:
-    name: Bump Version
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      bumped:      ${{ steps.cz.outputs.bumped }}
-      new_version: ${{ steps.cz.outputs.new_version }}
-
-    steps:
-      - name: Checkout code (full history for commitizen)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Set up Python 3.13
-        run: uv python install 3.13
-
-      - name: Install dependencies (incl. dev)
-        run: uv sync --all-groups
-
-      - name: Configure git bot identity
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      # ── Manual dispatch: stamp exact version ──────────────────────────────
-      - name: Bump to exact version (manual dispatch)
-        id: cz_manual
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          VERSION="${{ inputs.version }}"
-          # Update version in pyproject.toml if it differs
-          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" pyproject.toml
-          if ! git diff --quiet pyproject.toml; then
-            git add pyproject.toml
-            git commit -m "bump: release v${VERSION}"
-          fi
-          git tag -a "v${VERSION}" -m "Release v${VERSION}"
-          echo "bumped=true"           >> "$GITHUB_OUTPUT"
-          echo "new_version=${VERSION}" >> "$GITHUB_OUTPUT"
-
-      # ── Auto: derive version from conventional commits ────────────────────
-      # Exit code 21 = "nothing to release" — treated as success (no-op).
-      - name: Bump version with commitizen (auto)
-        id: cz_auto
-        if: github.event_name == 'push'
-        run: |
-          if uv run cz bump --yes; then
-            echo "bumped=true" >> "$GITHUB_OUTPUT"
-            echo "new_version=$(uv run cz version --project)" >> "$GITHUB_OUTPUT"
-          else
-            EXIT=$?
-            if [ $EXIT -eq 21 ]; then
-              echo "bumped=false" >> "$GITHUB_OUTPUT"
-              echo "ℹ️  No releasable commits since last tag — skipping release."
-            else
-              exit $EXIT
-            fi
-          fi
-
-      # ── Merge outputs from both branches into a single step output ────────
-      - name: Resolve bump outputs
-        id: cz
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "bumped=${{ steps.cz_manual.outputs.bumped }}"       >> "$GITHUB_OUTPUT"
-            echo "new_version=${{ steps.cz_manual.outputs.new_version }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "bumped=${{ steps.cz_auto.outputs.bumped }}"         >> "$GITHUB_OUTPUT"
-            echo "new_version=${{ steps.cz_auto.outputs.new_version }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Push version bump commit and tag
-        if: steps.cz.outputs.bumped == 'true'
-        run: git push --follow-tags
-
-  # ── 2. Build per platform (only when version was bumped) ──────────────────
+  # ── Build per platform ─────────────────────────────────────────────────────
   build:
     name: Build — ${{ matrix.os-label }}
-    needs: bump
-    if: needs.bump.outputs.bumped == 'true'
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -122,10 +35,10 @@ jobs:
             artifact: MultiChannelWavMixer-Windows-x64.zip
 
     steps:
-      - name: Checkout code at new tag
+      - name: Checkout code at tag
         uses: actions/checkout@v4
         with:
-          ref: v${{ needs.bump.outputs.new_version }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -182,11 +95,10 @@ jobs:
           path: dist/${{ matrix.artifact }}
           retention-days: 7
 
-  # ── 3. Publish GitHub Release with all platform artifacts ─────────────────
+  # ── Publish GitHub Release ─────────────────────────────────────────────────
   publish:
     name: Publish GitHub Release
-    needs: [bump, build]
-    if: needs.bump.outputs.bumped == 'true'
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -201,6 +113,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.bump.outputs.new_version }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           files: release-artifacts/*.zip
           generate_release_notes: true
