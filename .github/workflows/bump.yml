@@ -53,6 +53,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Ask commitizen if there is anything to bump (dry-run, no side effects).
+          # NOTE: capture the exit code in the else-branch, NOT after fi.
+          # POSIX: an if-compound with no matched condition and no else has exit
+          # status 0, which would make $? after fi always 0.
           if uv run cz bump --dry-run --yes > /dev/null 2>&1; then
             echo "Releasable commits found — bumping."
             uv run cz bump --yes
@@ -60,9 +63,10 @@ jobs:
             NEW_TAG=$(git describe --tags --abbrev=0)
             echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
             exit 0
+          else
+            CZ_EXIT=$?
           fi
 
-          CZ_EXIT=$?
           if [ "$CZ_EXIT" -ne 21 ]; then
             echo "Commitizen exited with unexpected code $CZ_EXIT — check the cz bump logs above for details." >&2
             exit "$CZ_EXIT"
