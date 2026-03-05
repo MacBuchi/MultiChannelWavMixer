@@ -67,7 +67,10 @@ jobs:
             CZ_EXIT=$?
           fi
 
-          if [ "$CZ_EXIT" -ne 21 ]; then
+          # 21 = NoneIncrementExit  (commits found but none trigger a bump)
+          # 16 = NoRevisionError    (no tag exists yet to base a bump from)
+          # Both are "nothing to bump" — exit cleanly.
+          if [ "$CZ_EXIT" -ne 21 ] && [ "$CZ_EXIT" -ne 16 ]; then
             echo "Commitizen exited with unexpected code $CZ_EXIT — check the cz bump logs above for details." >&2
             exit "$CZ_EXIT"
           fi
