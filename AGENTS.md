@@ -71,6 +71,20 @@ When adding or removing dependencies:
 
 ---
 
+## Pre-commit checklist
+
+**Always run all three of these commands and confirm they pass before every `git commit`:**
+
+```sh
+uv run ruff format .      # auto-format — re-stage any files it changes
+uv run ruff check .       # lint — must report "All checks passed!"
+uv run pytest --tb=short -q  # tests — must report 0 failures, 0 errors
+```
+
+Do not commit if any of these steps fails. Fix the issue first, then re-run all three.
+
+---
+
 ## Git workflow
 
 ```

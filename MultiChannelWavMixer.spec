@@ -13,6 +13,10 @@ block_cipher = None
 # ── Data files to bundle ────────────────────────────────────────────────────────
 datas = []
 
+# Application images (logo, header background)
+import glob as _glob
+datas += [(_f, "Pics") for _f in _glob.glob("Pics/*.png")]
+
 # customtkinter — themes, images, assets
 datas += collect_data_files("customtkinter")
 
@@ -111,6 +115,7 @@ exe = EXE(
     target_arch=None,       # native arch; use 'universal2' for fat binary
     codesign_identity=None,
     entitlements_file=None,
+    icon="Pics/AppIcon.ico" if sys.platform == "win32" else None,
 )
 
 coll = COLLECT(
@@ -129,7 +134,7 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="MultiChannelWavMixer.app",
-        icon=None,              # set to "path/to/icon.icns" when available
+        icon="Pics/AppIcon.icns",
         bundle_identifier="com.macbuchi.multichannelwavmixer",
         info_plist={
             "CFBundleShortVersionString": "1.0.0",
