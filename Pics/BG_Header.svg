@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="77.064362mm"
+   height="40.92683mm"
+   viewBox="0 0 77.064362 40.92683"
+   version="1.1"
+   id="svg1"
+   xml:space="preserve"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><sodipodi:namedview
+     id="namedview1"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm" /><defs
+     id="defs1"><linearGradient
+       id="linearGradient45"
+       inkscape:collect="always"><stop
+         style="stop-color:#090c15;stop-opacity:1;"
+         offset="0"
+         id="stop46" /><stop
+         style="stop-color:#1e1c27;stop-opacity:1;"
+         offset="0.51851851"
+         id="stop48" /><stop
+         style="stop-color:#05060e;stop-opacity:1;"
+         offset="1"
+         id="stop47" /></linearGradient><linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient45"
+       id="linearGradient47"
+       x1="25.688116"
+       y1="-26.558901"
+       x2="102.75247"
+       y2="-26.558901"
+       gradientUnits="userSpaceOnUse"
+       gradientTransform="translate(76.659461,65.940133)" /></defs><g
+     inkscape:label="Ebene 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-102.34757,-18.917818)"><rect
+       style="vector-effect:non-scaling-stroke;fill:url(#linearGradient47);fill-rule:evenodd;stroke-width:0.264583;stroke-linecap:square;stroke-linejoin:bevel;-inkscape-stroke:hairline;paint-order:markers fill stroke"
+       id="rect45"
+       width="77.064354"
+       height="40.92683"
+       x="102.34757"
+       y="18.917818" /></g></svg>
