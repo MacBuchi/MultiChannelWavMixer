@@ -12,6 +12,7 @@ import numpy as np
 import pyloudnorm as pyln
 import soundfile as sf
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from PIL import Image
 from pydub import AudioSegment
 
 from mixer_utils import (
@@ -34,6 +35,12 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 # ─── Constants ─────────────────────────────────────────────────────────────────
+# Resolve where bundled/source assets (Pics/) live.
+if getattr(sys, "frozen", False):
+    _BUNDLE_DIR = sys._MEIPASS
+else:
+    _BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Resolve paths that must work both from source and inside a .app bundle.
 if getattr(sys, "frozen", False):
     # Running inside PyInstaller bundle — store user data in Application Support
@@ -515,11 +522,21 @@ def set_output_folder(inFilePath=None):
         lbl_output_folder.configure(text=display)
 
 
+def _load_ctk_image(filename: str, size: tuple[int, int]) -> ctk.CTkImage | None:
+    """Load a PNG from Pics/ as a CTkImage, returning None on failure."""
+    path = os.path.join(_BUNDLE_DIR, "Pics", filename)
+    try:
+        img = Image.open(path)
+        return ctk.CTkImage(light_image=img, dark_image=img, size=size)
+    except Exception:
+        return None
+
+
 # ─── Main window ───────────────────────────────────────────────────────────────
 root = ctk.CTk()
 root.title("Multichannel WAV Mixer")
-root.geometry("1060x560")
-root.minsize(900, 420)
+root.geometry("1060x628")
+root.minsize(900, 490)
 
 
 def bring_to_front(event=None):
@@ -528,6 +545,33 @@ def bring_to_front(event=None):
 
 
 root.bind("<FocusIn>", bring_to_front)
+
+# ─── Header ───────────────────────────────────────────────────────────────────
+header = ctk.CTkFrame(root, corner_radius=0, height=66, fg_color="#090c15")
+header.pack(side="top", fill="x")
+header.pack_propagate(False)
+
+_logo_img = _load_ctk_image("Logo.png", (76, 53))
+if _logo_img:
+    ctk.CTkLabel(header, image=_logo_img, text="").pack(side="left", padx=(16, 10), pady=6)
+
+_title_frame = ctk.CTkFrame(header, fg_color="transparent")
+_title_frame.pack(side="left", pady=10)
+ctk.CTkLabel(
+    _title_frame,
+    text="Multichannel WAV Mixer",
+    font=ctk.CTkFont(size=19, weight="bold"),
+    text_color="#daeef8",
+).pack(anchor="w")
+ctk.CTkLabel(
+    _title_frame,
+    text="RME Durec  ·  Stereo Mixdown",
+    font=ctk.CTkFont(size=11),
+    text_color="#4a7a92",
+).pack(anchor="w")
+
+# Accent line separating header from toolbar
+ctk.CTkFrame(root, corner_radius=0, height=2, fg_color="#1e5f7a").pack(side="top", fill="x")
 
 # ─── State variables ───────────────────────────────────────────────────────────
 file_paths: tuple = ()

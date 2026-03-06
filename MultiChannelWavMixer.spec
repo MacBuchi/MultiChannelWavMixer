@@ -13,6 +13,10 @@ block_cipher = None
 # ── Data files to bundle ────────────────────────────────────────────────────────
 datas = []
 
+# Application images (logo, header background)
+import glob as _glob
+datas += [(_f, "Pics") for _f in _glob.glob("Pics/*.png")]
+
 # customtkinter — themes, images, assets
 datas += collect_data_files("customtkinter")
 
