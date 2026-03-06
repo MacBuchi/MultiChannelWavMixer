@@ -59,6 +59,5 @@ def test_app_starts_and_stays_alive() -> None:
     _, stderr = proc.communicate(timeout=5)
     error_text = stderr.decode(errors="replace").strip()
     pytest.fail(
-        f"App exited after {_ALIVE_SECS}s with code {exit_code}.\n"
-        f"stderr:\n{error_text[:2000]}"
+        f"App exited after {_ALIVE_SECS}s with code {exit_code}.\nstderr:\n{error_text[:2000]}"
     )
