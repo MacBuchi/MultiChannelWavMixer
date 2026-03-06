@@ -115,6 +115,7 @@ exe = EXE(
     target_arch=None,       # native arch; use 'universal2' for fat binary
     codesign_identity=None,
     entitlements_file=None,
+    icon="Pics/AppIcon.ico" if sys.platform == "win32" else None,
 )
 
 coll = COLLECT(
@@ -133,7 +134,7 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="MultiChannelWavMixer.app",
-        icon=None,              # set to "path/to/icon.icns" when available
+        icon="Pics/AppIcon.icns",
         bundle_identifier="com.macbuchi.multichannelwavmixer",
         info_plist={
             "CFBundleShortVersionString": "1.0.0",
