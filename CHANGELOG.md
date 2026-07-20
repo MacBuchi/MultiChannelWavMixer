@@ -1,3 +1,10 @@
+## v1.1.0 (2026-07-20)
+
+### Feat
+
+- **build**: add app icon for macOS and Windows
+- **ui**: add header with logo + app smoke test
+
 ## v1.0.3 (2026-03-05)
 
 ### Fix
